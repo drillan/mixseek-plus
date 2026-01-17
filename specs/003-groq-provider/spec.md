@@ -41,7 +41,7 @@ mixseek-plusでは、これに加えて **Groq (Groq Inc.)** プロバイダー�
 
 **Why this priority**: Groqプロバイダーの基本機能であり、他の全機能の前提となるため最優先。
 
-**Independent Test**: 環境変数 `GROQ_API_KEY` を設定し、`create_model()` を呼び出してモデルインスタンスが返されることで検証可能。
+**Independent Test**: 環境変数 `GROQ_API_KEY` を設定し、`create_model()` を呼び出してモデルインスタンスが返されることで検証可能。単体テストではモック、統合テストでは実APIを使用する。
 
 **Acceptance Scenarios**:
 
@@ -99,47 +99,58 @@ mixseek-plusでは、これに加えて **Groq (Groq Inc.)** プロバイダー�
 
 ### Edge Cases
 
-- Groq APIがレート制限を返した場合、リトライ可能であることを示すエラーメッセージが表示される
-- Groq APIが一時的にダウンしている場合、サービス障害を示すエラーメッセージが表示される
-- 存在しないGroqモデル名を指定した場合、利用可能なモデル一覧を含むエラーメッセージが表示される
+**Acceptance Scenarios**:
+
+1. **Given** `GROQ_API_KEY` が設定された環境, **When** Groq APIがレート制限（HTTP 429）を返す, **Then** 「レート制限に達しました。しばらく待ってから再試行してください」を含むエラーメッセージが表示される
+2. **Given** `GROQ_API_KEY` が設定された環境, **When** Groq APIが一時的にダウン（HTTP 503）している, **Then** 「Groqサービスが一時的に利用できません」を含むエラーメッセージが表示される
+3. **Given** `GROQ_API_KEY` が設定された環境, **When** 存在しないモデル名 `groq:nonexistent-model` を指定, **Then** Groq APIからのエラーメッセージが適切にラップされて表示される
 
 ## Requirements *(mandatory)*
 
 ### Functional Requirements
 
+> **注記**: 本仕様の要件IDは `GR-xxx` を使用（親仕様 `001-core-inheritance` の `FR-xxx` と区別するため）
+
 #### モデル作成機能
 
-- **FR-001**: `mixseek_plus.create_model(model_id)` 関数を提供し、`groq:` プレフィックスのモデルIDを受け付けなければならない
-- **FR-002**: `groq:` プレフィックスのモデルIDが指定された場合、Groqプロバイダーを使用してモデルインスタンスを作成しなければならない
-- **FR-003**: `groq:` 以外のプレフィックスのモデルIDが指定された場合、mixseek-coreの `create_authenticated_model()` に処理を委譲しなければならない
+- **GR-001**: `mixseek_plus.create_model(model_id)` 関数を提供し、`groq:` プレフィックスのモデルIDを受け付けなければならない
+- **GR-002**: `groq:` プレフィックスのモデルIDが指定された場合、Groqプロバイダーを使用してモデルインスタンスを作成しなければならない
+- **GR-003**: `groq:` 以外のプレフィックスのモデルIDが指定された場合、mixseek-coreの `create_authenticated_model()` に処理を委譲しなければならない
 
 #### 認証
 
-- **FR-010**: Groqモデル作成時、環境変数 `GROQ_API_KEY` からAPIキーを取得しなければならない
-- **FR-011**: `GROQ_API_KEY` が未設定または空の場合、明確なエラーメッセージを表示しなければならない
+- **GR-010**: Groqモデル作成時、環境変数 `GROQ_API_KEY` からAPIキーを取得しなければならない
+- **GR-011**: `GROQ_API_KEY` が未設定または空の場合、明確なエラーメッセージを表示しなければならない
 
 #### サポートモデル
 
-- **FR-020**: 以下のGroqモデルをサポートしなければならない（Production + Preview）：
+- **GR-020**: 以下のGroqモデルをサポートしなければならない（Production + Preview）：
   - Production: `groq:llama-3.3-70b-versatile`, `groq:llama-3.1-8b-instant`
-  - Preview: `groq:meta-llama/llama-4-scout-17b-16e-instruct`, `groq:qwen/qwen3-32b` 等
-- **FR-021**: Groq APIで利用可能な他のモデルも `groq:model-name` 形式で指定可能でなければならない
-- **FR-022**: モデル名にスラッシュを含む場合（例: `groq:qwen/qwen3-32b`）、そのまま受け付けなければならない
+  - Preview: `groq:meta-llama/llama-4-scout-17b-16e-instruct`, `groq:qwen/qwen3-32b`
+- **GR-021**: 上記以外のGroq APIモデルも `groq:model-name` 形式で指定可能でなければならない（モデルの検証はGroq API側で行われる）
+- **GR-022**: モデル名にスラッシュを含む場合（例: `groq:qwen/qwen3-32b`）、そのまま受け付けなければならない
 
 #### エラーハンドリング
 
-- **FR-030**: 不正なモデルID形式（コロンなし等）の場合、正しい形式を示すエラーメッセージを表示しなければならない
-- **FR-031**: 未知のプロバイダープレフィックスの場合、サポートされているプロバイダー一覧を含むエラーメッセージを表示しなければならない
-- **FR-032**: Groq API呼び出し時のエラー（認証エラー、レート制限、サービス障害等）は、原因と対処法を含むエラーメッセージを表示しなければならない
+- **GR-030**: 不正なモデルID形式（コロンなし等）の場合、正しい形式を示すエラーメッセージを表示しなければならない
+- **GR-031**: 未知のプロバイダープレフィックスの場合、サポートされているプロバイダー一覧を含むエラーメッセージを表示しなければならない
+- **GR-032**: Groq API呼び出し時のエラー（認証エラー、レート制限、サービス障害等）は、原因と対処法を含むエラーメッセージを表示しなければならない
 
 #### エクスポート
 
-- **FR-040**: `mixseek_plus` パッケージから `create_model` 関数をインポート可能でなければならない
+- **GR-040**: `mixseek_plus` パッケージから `create_model` 関数をインポート可能でなければならない
 
 ### Key Entities
 
-- **Model**: LLMプロバイダーへの接続を抽象化したオブジェクト。プロバイダー固有の認証情報とAPI呼び出しをカプセル化する
-- **Provider**: LLMサービス提供者（Groq, OpenAI, Anthropic等）の識別子。モデルIDのプレフィックスとして使用される
+- **Model**: LLMプロバイダーへの接続を抽象化したオブジェクト
+  - **属性**: `provider_id`（プロバイダー識別子）, `model_name`（モデル名）
+  - **不変条件**: `provider_id` は空文字不可、`model_name` は空文字不可
+  - **生成元**: `create_model()` 関数のみ（直接インスタンス化は非推奨）
+
+- **Provider**: LLMサービス提供者の識別子
+  - **有効な値**: `groq`（mixseek-plus）、`openai`, `anthropic`, `google-gla`, `google-vertex`, `grok`（mixseek-core）
+  - **環境変数マッピング**: `groq` → `GROQ_API_KEY`
+  - **モデルID形式**: `{provider}:{model_name}`（例: `groq:llama-3.3-70b-versatile`）
 
 ## Success Criteria *(mandatory)*
 
@@ -156,3 +167,8 @@ mixseek-plusでは、これに加えて **Groq (Groq Inc.)** プロバイダー�
 - pydantic-aiライブラリがGroqプロバイダーをサポートしている
 - mixseek-coreの `create_authenticated_model()` 関数は安定したAPIを提供している
 - ユーザーはGroq Console（https://console.groq.com/keys）でAPIキーを取得済みである
+
+### Test Strategy
+
+- **単体テスト**: Groq APIをモックし、`create_model()` の分岐ロジック・エラーハンドリングを検証。CI環境で常時実行。
+- **統合テスト**: 実際のGroq APIを呼び出し、エンドツーエンドの動作を検証。`GROQ_API_KEY` が設定されている場合のみ実行（`pytest.mark.integration`）。
