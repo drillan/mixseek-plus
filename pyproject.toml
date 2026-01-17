@@ -8,6 +8,7 @@ authors = [
 ]
 requires-python = ">=3.13.7"
 dependencies = [
+    "claudecode-model",
     "mixseek-core",
     "pydantic-ai",
     "tavily-python>=0.7.4",
@@ -36,3 +37,4 @@ docs = [
 
 [tool.uv.sources]
 mixseek-core = { git = "https://github.com/mixseek/mixseek-core.git" }
+claudecode-model = { git = "https://github.com/drillan/claudecode-model.git" }
