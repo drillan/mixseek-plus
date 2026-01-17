@@ -98,7 +98,7 @@ class TestGroqPlainAgentIntegration:
         )
 
         agent = GroqPlainAgent(config)
-        context = {"user_id": "test123", "session": "integration"}
+        context: dict[str, object] = {"user_id": "test123", "session": "integration"}
         result = await agent.execute("Say 'ok'", context=context)
 
         assert result.status == ResultStatus.SUCCESS

@@ -4,11 +4,16 @@ This module provides patch_core() which extends mixseek-core's
 create_authenticated_model to support Groq models.
 """
 
-from typing import Any, Callable
+from collections.abc import Callable
+
+from pydantic_ai.models import Model
 
 # Module-level state to track if patch has been applied
 _PATCH_APPLIED = False
-_ORIGINAL_FUNCTION: Callable[[str], Any] | None = None
+_ORIGINAL_FUNCTION: Callable[[str], Model] | None = None
+
+# Constant for Groq provider prefix
+GROQ_PROVIDER_PREFIX = "groq:"
 
 
 class GroqNotPatchedError(Exception):
@@ -112,26 +117,29 @@ def patch_core() -> None:
     original_func = auth.create_authenticated_model
     _ORIGINAL_FUNCTION = original_func
 
-    def patched_create_authenticated_model(model_id: str) -> Any:
+    def patched_create_authenticated_model(model_id: str) -> Model:
         """Extended create_authenticated_model with Groq support.
 
         Args:
-            model_id: Model identifier with provider prefix (e.g., "groq:llama-3.3-70b-versatile")
+            model_id: Model identifier with provider prefix
+                     (e.g., "groq:llama-3.3-70b-versatile")
 
         Returns:
             Model instance appropriate for the provider
 
         Raises:
-            ModelCreationError: If model creation fails (including Groq-specific errors)
+            ModelCreationError: If model creation fails
+                               (including Groq-specific errors)
         """
-        if model_id.startswith("groq:"):
-            model_name = model_id[len("groq:") :]
+        if model_id.startswith(GROQ_PROVIDER_PREFIX):
+            model_name = model_id[len(GROQ_PROVIDER_PREFIX) :]
             return create_groq_model(model_name)
         # Use the captured original function, not the module reference
         return original_func(model_id)
 
     # Apply the patch to the auth module
-    auth.create_authenticated_model = patched_create_authenticated_model
+    # Note: Type ignore needed because auth module's type annotation is more specific
+    auth.create_authenticated_model = patched_create_authenticated_model  # type: ignore[assignment]
 
     # Also patch modules that have already imported the function directly
     # These modules hold their own reference that won't be updated by
@@ -141,7 +149,7 @@ def patch_core() -> None:
     _PATCH_APPLIED = True
 
 
-def _patch_module_references(patched_func: Callable[[str], Any]) -> None:
+def _patch_module_references(patched_func: Callable[[str], Model]) -> None:
     """Patch all modules that have imported create_authenticated_model directly.
 
     mixseek-core has several modules that use:

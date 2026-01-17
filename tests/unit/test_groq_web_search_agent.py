@@ -71,11 +71,16 @@ class TestGroqWebSearchAgentInitialization:
         assert hasattr(agent._agent, "_function_toolset")
         assert len(agent._agent._function_toolset.tools) > 0
 
-    def test_raises_value_error_for_invalid_api_key(
-        self, clear_groq_api_key: None
+    def test_raises_value_error_for_missing_tavily_api_key(
+        self, mock_groq_api_key: str
     ) -> None:
-        """Should raise ValueError when API key is missing."""
+        """Should raise ValueError when TAVILY_API_KEY is missing."""
         from mixseek_plus.agents.groq_web_search_agent import GroqWebSearchAgent
+
+        # Ensure TAVILY_API_KEY is not set
+        import os
+
+        os.environ.pop("TAVILY_API_KEY", None)
 
         config = MemberAgentConfig(
             name="test-agent",
@@ -84,8 +89,32 @@ class TestGroqWebSearchAgentInitialization:
             system_instruction="You are a web search assistant.",
         )
 
-        with pytest.raises(ValueError, match="Model creation failed"):
+        with pytest.raises(ValueError, match="Tavily credential validation failed"):
             GroqWebSearchAgent(config)
+
+    def test_raises_value_error_for_missing_groq_api_key(
+        self, clear_groq_api_key: None
+    ) -> None:
+        """Should raise ValueError when GROQ_API_KEY is missing."""
+        import os
+
+        from mixseek_plus.agents.groq_web_search_agent import GroqWebSearchAgent
+
+        # Set valid TAVILY_API_KEY but no GROQ_API_KEY
+        os.environ["TAVILY_API_KEY"] = "tvly-test123"
+
+        config = MemberAgentConfig(
+            name="test-agent",
+            type="custom",
+            model="groq:llama-3.3-70b-versatile",
+            system_instruction="You are a web search assistant.",
+        )
+
+        try:
+            with pytest.raises(ValueError, match="Model creation failed"):
+                GroqWebSearchAgent(config)
+        finally:
+            os.environ.pop("TAVILY_API_KEY", None)
 
 
 class TestGroqWebSearchAgentExecute:
