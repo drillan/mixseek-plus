@@ -1,15 +1,23 @@
-% mixseek-plus documentation master file, created by
-% sphinx-quickstart on Sat Jan 17 09:13:31 2026.
-% You can adapt this file completely to your liking, but it should at least
-% contain the root `toctree` directive.
+# mixseek-plus
 
-# mixseek-plus documentation
+mixseek-coreの拡張パッケージ。Groqモデルサポートやweb_fetch強化などの追加機能を提供します。
 
-Add your content using `reStructuredText` syntax. See the
-[reStructuredText](https://www.sphinx-doc.org/en/master/usage/restructuredtext/index.html)
-documentation for details.
+## 概要
+
+mixseek-plusは、mixseek-coreのMember/Leader/Evaluatorフレームワークを拡張し、Groqプロバイダーのサポートを追加します。
+
+主な機能:
+- Model Factory: `create_model()` によるGroqモデルインスタンスの作成
+- Memberエージェント: `groq_plain`、`groq_web_search` タイプのエージェント
+- Core統合: `patch_core()` によるLeader/EvaluatorへのGroqサポート追加
+
+## 目次
 
 ```{toctree}
-:caption: 'Contents:'
+:caption: 'ドキュメント'
 :maxdepth: 2
+
+getting-started
+user-guide
+api-reference
 ```
