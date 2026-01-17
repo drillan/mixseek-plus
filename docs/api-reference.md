@@ -77,6 +77,17 @@ Groqサポートが有効化されているか確認します。
 
 - `GroqNotPatchedError`: `patch_core()` が呼び出されていない場合
 
+**使用例**
+
+```python
+from mixseek_plus import check_groq_support, patch_core, GroqNotPatchedError
+
+try:
+    check_groq_support()
+except GroqNotPatchedError:
+    patch_core()
+```
+
 ## Agents
 
 ### register_groq_agents
@@ -188,3 +199,33 @@ def __init__(self, message: str | None = None) -> None
 ```
 
 `message` を省略すると、解決方法を含むデフォルトメッセージが使用されます。
+
+### TavilySearchError
+
+```python
+from mixseek_plus.agents.groq_web_search_agent import TavilySearchError
+```
+
+```python
+class TavilySearchError(Exception)
+```
+
+Tavily検索が失敗した場合に発生する例外です。`GroqWebSearchAgent` の使用時に発生する可能性があります。
+
+この例外は以下のケースでラップされます：
+- 認証エラー（無効なAPIキー）
+- レート制限エラー
+- ネットワークエラー
+- 無効なレスポンス形式
+
+**属性**
+
+| 名前 | 型 | 説明 |
+|------|-----|------|
+| `original_error` | `Exception \| None` | 元となった例外 |
+
+**コンストラクタ**
+
+```python
+def __init__(self, message: str, original_error: Exception | None = None) -> None
+```

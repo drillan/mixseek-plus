@@ -29,6 +29,10 @@ model = create_model("anthropic:claude-sonnet-4-5-20250929")
 | `groq` | `groq:llama-3.3-70b-versatile` |
 | `openai` | `openai:gpt-4o` |
 | `anthropic` | `anthropic:claude-sonnet-4-5-20250929` |
+| `google-gla` | `google-gla:gemini-2.0-flash` |
+| `google-vertex` | `google-vertex:gemini-2.0-flash` |
+| `grok` | `grok:grok-2` |
+| `grok-responses` | `grok-responses:grok-2` |
 
 ## Memberエージェント
 
@@ -80,7 +84,23 @@ system_prompt = "追加のシステムプロンプト"
 max_retries = 3
 temperature = 0.7
 max_tokens = 4096
+stop_sequences = ["END", "STOP"]
+top_p = 0.9
+seed = 42
+timeout_seconds = 30.0
 ```
+
+| オプション | 型 | 説明 |
+|------------|-----|------|
+| `system_instruction` | `str` | エージェントへの指示 |
+| `system_prompt` | `str` | 追加のシステムプロンプト |
+| `max_retries` | `int` | リトライ回数 |
+| `temperature` | `float` | 生成の温度パラメータ |
+| `max_tokens` | `int` | 最大トークン数 |
+| `stop_sequences` | `list[str]` | 生成を停止するシーケンス |
+| `top_p` | `float` | Top-pサンプリングの確率 |
+| `seed` | `int` | 再現性のための乱数シード |
+| `timeout_seconds` | `float` | リクエストタイムアウト秒数 |
 
 ## Leader/Evaluatorでの使用
 
@@ -133,10 +153,10 @@ result = team.run("タスクを実行してください")
 
 ```bash
 # チーム実行
-mixseek-plus team "タスク" --config team.toml
+mixseek team "タスク" --config team.toml
 
 # ヘルプ表示
-mixseek-plus --help
+mixseek --help
 ```
 
 ## トラブルシューティング

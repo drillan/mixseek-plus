@@ -15,7 +15,6 @@ dependencies = [
 
 [project.scripts]
 mixseek = "mixseek_plus.cli:main"
-mixseek-plus = "mixseek_plus:main"
 
 [build-system]
 requires = ["uv_build>=0.9.24,<0.10.0"]
