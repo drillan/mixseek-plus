@@ -10,8 +10,8 @@
 
 ### Session 2026-01-17
 
-- Q: サポートするClaudeモデル名は何か？ → A: 公式ドキュメントに基づき、Current: `claude-sonnet-4-5`, `claude-haiku-4-5`, `claude-opus-4-5`、Legacy: `claude-opus-4-1`, `claude-sonnet-4-0`, `claude-opus-4-0` をサポート（エイリアス形式）
-- Q: User Story 2（mixseek-coreモデルへの委譲）は必要か？ → A: 削除。親仕様001-core-inheritance FR-020と重複。委譲機能は親仕様で定義済み
+- Q: サポートするClaudeモデル名は何か？ → A: 公式ドキュメントに基づくモデルをサポート（詳細は「Key Entities > ClaudeCodeModel > サポートモデル」を参照）
+- Q: User Story 2（mixseek-coreモデルへの委譲）は必要か？ → A: 削除。親仕様001-core-inheritance FR-020と重複。委譲機能は親仕様で定義済みであり、テストは親仕様のテストスイートでカバー済み
 - Q: Success Criteriaに追加すべき重要な指標は？ → A: APIキーなしでmixseekのオーケストレーション処理が完遂すること（Claude Code CLIの認証を利用するため、環境変数のAPIキー設定が不要）
 
 ## Background
@@ -86,7 +86,6 @@ ClaudeCodeModelはClaude Code CLIのセッション認証を使用するため�
 
 1. **Given** Claude Code CLIが利用可能な環境, **When** `type = "claudecode_plain"` のMember Agent設定でタスクを実行, **Then** ClaudeCodeModelでタスクが正常に完了する
 2. **Given** mixseek-plusがインストールされた環境, **When** `MemberAgentFactory.register_agent()` でClaudeCodeエージェントを登録, **Then** TOMLから自動的にClaudeCodeエージェントが選択される
-3. **Given** `type = "claudecode_plain"` のMember Agent, **When** 設定でツール制限 `allowed_tools = ["Read", "Glob", "Grep"]` を指定, **Then** 指定されたツールのみが利用可能になる
 
 ---
 
@@ -214,6 +213,7 @@ ClaudeCodeModelはClaude Code CLIのセッション認証を使用するため�
   - **属性**: `name`（エージェント名）、`model`（ClaudeCodeModel）、`tool_settings`（ツール設定）
   - **継承**: `BaseMemberAgent`
   - **特徴**: 単一エージェントで複数機能（推論、コード実行、ファイル操作、Web検索）を提供
+  - **tool_settings優先順位**: Agent設定が最優先。未指定の場合はModelのtool_settings、それも未指定の場合はデフォルト値を使用
 
 - **Provider**: LLMサービス提供者の識別子
   - **有効な値**: `claudecode`（mixseek-plus）、`groq`（mixseek-plus）、`openai`, `anthropic`, `google-gla`, `google-vertex`, `grok`, `grok-responses`（mixseek-core）
