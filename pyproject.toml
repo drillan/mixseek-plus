@@ -9,9 +9,12 @@ authors = [
 requires-python = ">=3.13.7"
 dependencies = [
     "mixseek-core",
+    "pydantic-ai",
+    "tavily-python>=0.7.4",
 ]
 
 [project.scripts]
+mixseek = "mixseek_plus.cli:main"
 mixseek-plus = "mixseek_plus:main"
 
 [build-system]
@@ -22,6 +25,7 @@ build-backend = "uv_build"
 dev = [
     "mypy>=1.19.1",
     "pytest>=9.0.2",
+    "pytest-asyncio>=1.0.0",
     "ruff>=0.14.13",
 ]
 docs = [

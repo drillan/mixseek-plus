@@ -13,6 +13,10 @@
 - Q: サポートモデルリストをどのように定義するか？ → A: Production + Previewモデルを含める（`llama-3.3-70b-versatile`, `llama-3.1-8b-instant`, `qwen/qwen3-32b`等）
 - Q: スラッシュを含むモデル名の扱いは？ → A: スラッシュをそのまま許可（`groq:qwen/qwen3-32b`形式）
 - Q: mixseek-coreのエージェント制約への対応方針は？ → A: (1) Member AgentはCustom Agent実装、(2) Leader/EvaluatorはMonkey-patchで暫定対応。将来的にmixseek-coreへPR提出
+- Q: CLIでのGroq対応方針は？ → A: `mixseek`コマンドを上書き（mixseek-plusインストールで自動有効化）
+- Q: GR-062「自動適用禁止」の適用範囲は？ → A: Python APIのみ適用。CLIは自動適用OK（ユーザーの明示的なCLI実行をトリガーとするため）
+- Q: エージェントクラス名の統一は？ → A: 実装に合わせて `GroqPlainAgent`, `GroqWebSearchAgent` を正式名称とする（短縮形を採用）
+- Q: `grok-responses:`プレフィックスをProvider有効な値に追加すべきか？ → A: 追加する（mixseek-coreがサポートしている。Web Search/X Search対応用）
 
 ## Background
 
@@ -22,6 +26,7 @@ mixseek-coreは以下のLLMプロバイダーをサポートしている：
 - OpenAI (`openai:`)
 - Anthropic (`anthropic:`)
 - xAI Grok (`grok:`)
+- xAI Grok Responses (`grok-responses:`) - Web Search/X Searchツール対応
 
 mixseek-plusでは、これに加えて **Groq (Groq Inc.)** プロバイダーをサポートする。
 
@@ -131,6 +136,22 @@ mixseek-plusでは、これに加えて **Groq (Groq Inc.)** プロバイダー�
 
 ---
 
+### User Story 7 - CLIでのGroq利用 (Priority: P1)
+
+開発者がmixseek-plusをインストールすると、`mixseek` CLIコマンドが自動的にGroq対応となり、追加設定なしでLeader/Evaluator/JudgmentでGroqモデルを使用できる。
+
+**Why this priority**: CLI経由でのGroq利用はUser Story 5, 6の実用的な前提条件であり、最優先で対応が必要。
+
+**Independent Test**: mixseek-plusインストール後、`mixseek exec`でGroqモデルを指定したTOML設定を実行し、正常に動作することで検証可能。
+
+**Acceptance Scenarios**:
+
+1. **Given** mixseek-plusがインストールされた環境, **When** `mixseek exec --config groq-config.toml` を実行, **Then** Leader/Evaluator/JudgmentでGroqモデルが使用される
+2. **Given** mixseek-plusがインストールされた環境, **When** `mixseek --version` を実行, **Then** mixseek-coreのバージョン情報が表示される（互換性維持）
+3. **Given** mixseek-plusがインストールされた環境, **When** `mixseek` の任意のサブコマンドを実行, **Then** mixseek-coreと同一の動作をする
+
+---
+
 ### Edge Cases
 
 **Acceptance Scenarios**:
@@ -173,8 +194,8 @@ mixseek-plusでは、これに加えて **Groq (Groq Inc.)** プロバイダー�
 
 #### Member Agent統合
 
-- **GR-050**: `GroqPlainMemberAgent` クラスを提供し、Groqモデルでの推論機能を実装しなければならない
-- **GR-051**: `GroqWebSearchMemberAgent` クラスを提供し、Groqモデルでの検索機能を実装しなければならない
+- **GR-050**: `GroqPlainAgent` クラスを提供し、Groqモデルでの推論機能を実装しなければならない
+- **GR-051**: `GroqWebSearchAgent` クラスを提供し、Groqモデルでの検索機能を実装しなければならない
 - **GR-052**: 上記エージェントは `BaseMemberAgent` を継承し、mixseek-coreのインターフェースと互換性を持たなければならない
 - **GR-053**: `MemberAgentFactory.register_agent()` で `groq_plain`, `groq_web_search` タイプを登録しなければならない
 - **GR-054**: TOML設定で `type = "groq_plain"` または `type = "groq_web_search"` を指定可能でなければならない
@@ -183,14 +204,21 @@ mixseek-plusでは、これに加えて **Groq (Groq Inc.)** プロバイダー�
 
 - **GR-060**: `mixseek_plus.patch_core()` 関数を提供し、mixseek-coreの `create_authenticated_model()` を拡張しなければならない
 - **GR-061**: パッチ適用後、Leader/Evaluator設定で `groq:` プレフィックスのモデルが使用可能になならなければならない
-- **GR-062**: パッチは明示的に呼び出す必要があり、自動適用してはならない（暗黙的動作禁止）
+- **GR-062**: パッチはPython APIでは明示的に呼び出す必要があり、自動適用してはならない（暗黙的動作禁止）。ただし、CLI経由での使用時（GR-070〜073）はエントリーポイントでの自動適用が許可される（ユーザーの明示的なCLI実行をトリガーとするため）
 - **GR-063**: パッチ未適用で `groq:` モデルが使用された場合、適切なエラーメッセージを表示しなければならない
+
+#### CLI統合
+
+- **GR-070**: `mixseek` コマンドを提供し、mixseek-coreのCLI機能をラップしなければならない
+- **GR-071**: CLIエントリーポイントは起動時に `patch_core()` を自動的に呼び出し、Groqサポートを有効化しなければならない
+- **GR-072**: mixseek-plusインストール後、ユーザーは追加設定なしで `mixseek exec` でGroqモデルを使用可能でなければならない
+- **GR-073**: CLIの動作はmixseek-coreと完全互換でなければならない（Groq対応以外の変更なし）
 
 #### エクスポート
 
 - **GR-040**: `mixseek_plus` パッケージから `create_model` 関数をインポート可能でなければならない
 - **GR-041**: `mixseek_plus` パッケージから `patch_core` 関数をインポート可能でなければならない
-- **GR-042**: `mixseek_plus` パッケージから `GroqPlainMemberAgent`, `GroqWebSearchMemberAgent` をインポート可能でなければならない
+- **GR-042**: `mixseek_plus` パッケージから `GroqPlainAgent`, `GroqWebSearchAgent` をインポート可能でなければならない
 
 ### Key Entities
 
@@ -200,9 +228,10 @@ mixseek-plusでは、これに加えて **Groq (Groq Inc.)** プロバイダー�
   - **生成元**: `create_model()` 関数のみ（直接インスタンス化は非推奨）
 
 - **Provider**: LLMサービス提供者の識別子
-  - **有効な値**: `groq`（mixseek-plus）、`openai`, `anthropic`, `google-gla`, `google-vertex`, `grok`（mixseek-core）
+  - **有効な値**: `groq`（mixseek-plus）、`openai`, `anthropic`, `google-gla`, `google-vertex`, `grok`, `grok-responses`（mixseek-core）
   - **環境変数マッピング**: `groq` → `GROQ_API_KEY`
   - **モデルID形式**: `{provider}:{model_name}`（例: `groq:llama-3.3-70b-versatile`）
+  - **注記**: `grok-responses:` はWeb Search/X Searchツール対応用（xAI Grok Responses API）
 
 ## Success Criteria *(mandatory)*
 
