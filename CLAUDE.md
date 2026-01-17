@@ -105,3 +105,10 @@
 - **パッケージ管理**: uv
 - **品質ツール**: ruff, mypy, pytest
 - **ドキュメント**: Sphinx + MyST-Parser + Mermaid
+
+## Active Technologies
+- Python 3.13+ + pydantic-ai (GroqModel), mixseek-core (create_authenticated_model) (003-groq-provider)
+- Python 3.13+ + pydantic-ai (GroqModel), mixseek-core (create_authenticated_model, BaseMemberAgent, MemberAgentConfig) (003-groq-provider)
+
+## Recent Changes
+- 003-groq-provider: Added Python 3.13+ + pydantic-ai (GroqModel), mixseek-core (create_authenticated_model)

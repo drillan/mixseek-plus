@@ -221,3 +221,6 @@ __marimo__/
 # working files
 /working/
 /ai_working/
+
+# mixseek workspaces
+/workspaces/
