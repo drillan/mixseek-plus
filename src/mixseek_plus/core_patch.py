@@ -8,14 +8,22 @@ ClaudeCode-specific tool settings (permission_mode, working_directory, etc.)
 that are used by Leader/Evaluator/Judgment agents.
 """
 
+from __future__ import annotations
+
+import logging
 from collections.abc import Callable
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING
 
 from pydantic_ai.models import Model
 
 from mixseek_plus.providers import CLAUDECODE_PROVIDER_PREFIX, GROQ_PROVIDER_PREFIX
 from mixseek_plus.providers.claudecode import ClaudeCodeToolSettings
+
+if TYPE_CHECKING:
+    from mixseek.config.schema import TeamSettings
+
+logger = logging.getLogger(__name__)
 
 # Module-level state to track if patch has been applied
 _PATCH_APPLIED = False
@@ -25,7 +33,8 @@ _ORIGINAL_FUNCTION: Callable[[str], Model] | None = None
 _CLAUDECODE_TOOL_SETTINGS: ClaudeCodeToolSettings | None = None
 
 # Module-level state for ConfigurationManager patch
-_ORIGINAL_LOAD_TEAM_SETTINGS: Callable[..., Any] | None = None
+# TeamSettings is imported at runtime in _patch_configuration_manager()
+_ORIGINAL_LOAD_TEAM_SETTINGS: Callable[..., TeamSettings] | None = None
 
 
 class GroqNotPatchedError(Exception):
@@ -156,7 +165,7 @@ def clear_claudecode_tool_settings() -> None:
     _CLAUDECODE_TOOL_SETTINGS = None
 
 
-def apply_leader_tool_settings(leader_dict: dict[str, Any]) -> None:
+def apply_leader_tool_settings(leader_dict: dict[str, object]) -> None:
     """Apply leader tool_settings from TOML configuration.
 
     Extracts tool_settings.claudecode from leader dict and
@@ -167,17 +176,53 @@ def apply_leader_tool_settings(leader_dict: dict[str, Any]) -> None:
     """
     tool_settings = leader_dict.get("tool_settings")
     if not tool_settings:
+        logger.debug("leader.tool_settings が設定されていません。スキップします。")
+        return
+
+    if not isinstance(tool_settings, dict):
+        logger.debug(
+            "leader.tool_settings は dict である必要がありますが、%s が指定されました。スキップします。",
+            type(tool_settings).__name__,
+        )
         return
 
     claudecode_settings = tool_settings.get("claudecode")
     if claudecode_settings:
-        configure_claudecode_tool_settings(claudecode_settings)
+        if isinstance(claudecode_settings, dict):
+            configure_claudecode_tool_settings(claudecode_settings)  # type: ignore[arg-type]
+            logger.debug("leader.tool_settings.claudecode を適用しました。")
+        else:
+            logger.debug(
+                "leader.tool_settings.claudecode は dict である必要がありますが、%s が指定されました。スキップします。",
+                type(claudecode_settings).__name__,
+            )
+    else:
+        logger.debug(
+            "leader.tool_settings.claudecode が設定されていません。スキップします。"
+        )
 
 
 def _patch_configuration_manager() -> None:
-    """Patch ConfigurationManager.load_team_settings for auto tool_settings."""
+    """Patch ConfigurationManager.load_team_settings to auto-apply leader tool_settings.
+
+    This internal function wraps the original load_team_settings method
+    to automatically extract and apply leader.tool_settings.claudecode
+    when TOML configuration is loaded.
+
+    Called internally by patch_core(). Stores the original method in
+    _ORIGINAL_LOAD_TEAM_SETTINGS for potential restoration.
+
+    Raises:
+        ImportError: If ConfigurationManager cannot be imported from mixseek-core.
+            This indicates a version incompatibility or missing dependency.
+
+    Note:
+        This is a module-level patch that affects all ConfigurationManager
+        instances for the duration of the session.
+    """
     global _ORIGINAL_LOAD_TEAM_SETTINGS
 
+    # Import must succeed - raise ImportError if mixseek-core is incompatible
     from mixseek.config.manager import ConfigurationManager
 
     _ORIGINAL_LOAD_TEAM_SETTINGS = ConfigurationManager.load_team_settings
@@ -185,12 +230,21 @@ def _patch_configuration_manager() -> None:
     original_func = _ORIGINAL_LOAD_TEAM_SETTINGS
 
     def patched_load_team_settings(
-        self: ConfigurationManager, toml_file: Path, **extra_kwargs: Any
-    ) -> Any:
+        self: ConfigurationManager, toml_file: Path, **extra_kwargs: object
+    ) -> TeamSettings:
         team_settings = original_func(self, toml_file, **extra_kwargs)
 
-        # Auto-apply leader.tool_settings.claudecode
-        apply_leader_tool_settings(team_settings.leader)
+        # Auto-apply leader.tool_settings.claudecode with defensive programming
+        leader = getattr(team_settings, "leader", None)
+        if leader is not None:
+            try:
+                apply_leader_tool_settings(leader)
+            except Exception as e:
+                logger.warning("leader.tool_settings の自動適用に失敗しました: %s", e)
+        else:
+            logger.debug(
+                "team_settings.leader が存在しません。tool_settings の適用をスキップします。"
+            )
 
         return team_settings
 
