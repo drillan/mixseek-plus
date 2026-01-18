@@ -316,7 +316,7 @@ class TestCreateClaudeCodeModelWithToolSettings:
     """Tests for create_claudecode_model with tool_settings."""
 
     def test_create_claudecode_model_passes_allowed_tools(self) -> None:
-        """CC-040: create_claudecode_model passes allowed_tools to ClaudeCodeModel."""
+        """CC-040: create_claudecode_model passes allowed_tools to FixedTokenClaudeCodeModel."""
         from unittest.mock import MagicMock, patch
 
         from mixseek_plus.providers.claudecode import (
@@ -328,7 +328,9 @@ class TestCreateClaudeCodeModelWithToolSettings:
             "allowed_tools": ["Read", "Glob"],
         }
 
-        with patch("mixseek_plus.providers.claudecode.ClaudeCodeModel") as mock_model:
+        with patch(
+            "mixseek_plus.providers.claudecode.FixedTokenClaudeCodeModel"
+        ) as mock_model:
             mock_model.return_value = MagicMock()
             create_claudecode_model("claude-sonnet-4-5", tool_settings=tool_settings)
 
@@ -337,7 +339,7 @@ class TestCreateClaudeCodeModelWithToolSettings:
             assert call_kwargs.get("allowed_tools") == ["Read", "Glob"]
 
     def test_create_claudecode_model_passes_all_settings(self) -> None:
-        """create_claudecode_model passes all tool settings to ClaudeCodeModel."""
+        """create_claudecode_model passes all tool settings to FixedTokenClaudeCodeModel."""
         from unittest.mock import MagicMock, patch
 
         from mixseek_plus.providers.claudecode import (
@@ -353,7 +355,9 @@ class TestCreateClaudeCodeModelWithToolSettings:
             "max_turns": 5,
         }
 
-        with patch("mixseek_plus.providers.claudecode.ClaudeCodeModel") as mock_model:
+        with patch(
+            "mixseek_plus.providers.claudecode.FixedTokenClaudeCodeModel"
+        ) as mock_model:
             mock_model.return_value = MagicMock()
             create_claudecode_model("claude-sonnet-4-5", tool_settings=tool_settings)
 
@@ -371,7 +375,9 @@ class TestCreateClaudeCodeModelWithToolSettings:
 
         from mixseek_plus.providers.claudecode import create_claudecode_model
 
-        with patch("mixseek_plus.providers.claudecode.ClaudeCodeModel") as mock_model:
+        with patch(
+            "mixseek_plus.providers.claudecode.FixedTokenClaudeCodeModel"
+        ) as mock_model:
             mock_model.return_value = MagicMock()
             create_claudecode_model("claude-sonnet-4-5")
 
