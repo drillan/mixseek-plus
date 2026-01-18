@@ -348,3 +348,277 @@ class TestClaudeCodeToolSettingsSupport:
         # Clear settings
         clear_claudecode_tool_settings()
         assert get_claudecode_tool_settings() is None
+
+
+class TestApplyLeaderToolSettings:
+    """Tests for apply_leader_tool_settings() function (LTS-001, LTS-002, LTS-003).
+
+    These tests verify that leader.tool_settings from TOML configuration
+    is automatically applied when ConfigurationManager loads TeamSettings.
+    """
+
+    def test_apply_leader_tool_settings_with_claudecode(self) -> None:
+        """LTS-001: apply_leader_tool_settings applies claudecode settings."""
+        from mixseek_plus import core_patch
+        from mixseek_plus.core_patch import (
+            apply_leader_tool_settings,
+            get_claudecode_tool_settings,
+        )
+
+        # Clear any existing settings
+        core_patch._CLAUDECODE_TOOL_SETTINGS = None
+
+        leader_dict: dict[str, object] = {
+            "system_instruction": "You are a leader",
+            "model": "claudecode:claude-haiku-4-5",
+            "tool_settings": {
+                "claudecode": {
+                    "disallowed_tools": ["Bash", "Write", "Edit"],
+                }
+            },
+        }
+        apply_leader_tool_settings(leader_dict)
+
+        result = get_claudecode_tool_settings()
+        assert result is not None
+        assert result.get("disallowed_tools") == ["Bash", "Write", "Edit"]
+
+    def test_apply_leader_tool_settings_without_settings(self) -> None:
+        """LTS-002: apply_leader_tool_settings does nothing without tool_settings."""
+        from mixseek_plus import core_patch
+        from mixseek_plus.core_patch import (
+            apply_leader_tool_settings,
+            get_claudecode_tool_settings,
+        )
+
+        # Clear any existing settings
+        core_patch._CLAUDECODE_TOOL_SETTINGS = None
+
+        leader_dict: dict[str, object] = {
+            "system_instruction": "You are a leader",
+            "model": "claudecode:claude-haiku-4-5",
+        }
+        apply_leader_tool_settings(leader_dict)
+
+        result = get_claudecode_tool_settings()
+        assert result is None
+
+    def test_apply_leader_tool_settings_without_claudecode(self) -> None:
+        """LTS-003: apply_leader_tool_settings skips non-claudecode settings."""
+        from mixseek_plus import core_patch
+        from mixseek_plus.core_patch import (
+            apply_leader_tool_settings,
+            get_claudecode_tool_settings,
+        )
+
+        # Clear any existing settings
+        core_patch._CLAUDECODE_TOOL_SETTINGS = None
+
+        leader_dict: dict[str, object] = {
+            "system_instruction": "You are a leader",
+            "model": "groq:llama-3.3-70b-versatile",
+            "tool_settings": {
+                "some_other_provider": {"setting": "value"},
+            },
+        }
+        apply_leader_tool_settings(leader_dict)
+
+        result = get_claudecode_tool_settings()
+        assert result is None
+
+    def test_apply_leader_tool_settings_with_all_claudecode_options(self) -> None:
+        """LTS-004: apply_leader_tool_settings supports all ClaudeCode options."""
+        from mixseek_plus import core_patch
+        from mixseek_plus.core_patch import (
+            apply_leader_tool_settings,
+            get_claudecode_tool_settings,
+        )
+
+        # Clear any existing settings
+        core_patch._CLAUDECODE_TOOL_SETTINGS = None
+
+        leader_dict: dict[str, object] = {
+            "model": "claudecode:claude-haiku-4-5",
+            "tool_settings": {
+                "claudecode": {
+                    "disallowed_tools": ["Bash", "Write", "Edit", "Read"],
+                    "allowed_tools": ["AskUserQuestion"],
+                    "permission_mode": "bypassPermissions",
+                    "working_directory": "/workspace",
+                    "max_turns": 5,
+                }
+            },
+        }
+        apply_leader_tool_settings(leader_dict)
+
+        result = get_claudecode_tool_settings()
+        assert result is not None
+        assert result.get("disallowed_tools") == ["Bash", "Write", "Edit", "Read"]
+        assert result.get("allowed_tools") == ["AskUserQuestion"]
+        assert result.get("permission_mode") == "bypassPermissions"
+        assert result.get("working_directory") == "/workspace"
+        assert result.get("max_turns") == 5
+
+
+class TestConfigurationManagerPatch:
+    """Tests for ConfigurationManager.load_team_settings() patching (LTS-010, LTS-011)."""
+
+    def test_configuration_manager_patch_applies_leader_tool_settings(
+        self, tmp_path: pytest.TempPathFactory
+    ) -> None:
+        """LTS-010: ConfigurationManager patch applies leader tool_settings automatically."""
+        from pathlib import Path
+
+        from mixseek_plus import core_patch
+        from mixseek_plus.core_patch import get_claudecode_tool_settings, patch_core
+
+        # Reset patch state
+        core_patch._PATCH_APPLIED = False
+        core_patch._CLAUDECODE_TOOL_SETTINGS = None
+        core_patch._ORIGINAL_LOAD_TEAM_SETTINGS = None
+
+        # Apply patch
+        patch_core()
+
+        # Create a TOML file with leader.tool_settings
+        toml_content = """
+[team]
+team_id = "test-team"
+team_name = "Test Team"
+max_concurrent_members = 1
+
+[team.leader]
+system_instruction = "You are a leader"
+model = "claudecode:claude-haiku-4-5"
+temperature = 0.7
+
+[team.leader.tool_settings]
+claudecode = { disallowed_tools = ["Bash", "Write", "Edit"] }
+
+[[team.members]]
+name = "assistant"
+type = "custom"
+tool_name = "ask_assistant"
+tool_description = "Ask assistant for help."
+model = "claudecode:claude-haiku-4-5"
+temperature = 0.3
+max_tokens = 4096
+timeout_seconds = 120
+
+[team.members.system_instruction]
+text = "You are a helpful assistant."
+
+[team.members.plugin]
+agent_module = "mixseek_plus.agents.claudecode_agent"
+agent_class = "ClaudeCodePlainAgent"
+"""
+        toml_file = Path(tmp_path) / "team.toml"  # type: ignore[arg-type]
+        toml_file.write_text(toml_content)
+
+        # Load team settings - should auto-apply leader.tool_settings
+        from mixseek.config.manager import ConfigurationManager
+
+        manager = ConfigurationManager()
+        manager.load_team_settings(toml_file)
+
+        # Verify tool_settings were applied
+        result = get_claudecode_tool_settings()
+        assert result is not None
+        assert result.get("disallowed_tools") == ["Bash", "Write", "Edit"]
+
+    def test_configuration_manager_patch_without_tool_settings(
+        self, tmp_path: pytest.TempPathFactory
+    ) -> None:
+        """LTS-011: ConfigurationManager patch works without tool_settings in TOML."""
+        from pathlib import Path
+
+        from mixseek_plus import core_patch
+        from mixseek_plus.core_patch import get_claudecode_tool_settings, patch_core
+
+        # Reset patch state
+        core_patch._PATCH_APPLIED = False
+        core_patch._CLAUDECODE_TOOL_SETTINGS = None
+        core_patch._ORIGINAL_LOAD_TEAM_SETTINGS = None
+
+        # Apply patch
+        patch_core()
+
+        # Create a TOML file without leader.tool_settings
+        toml_content = """
+[team]
+team_id = "test-team"
+team_name = "Test Team"
+max_concurrent_members = 1
+
+[team.leader]
+system_instruction = "You are a leader"
+model = "openai:gpt-4o"
+temperature = 0.7
+
+[[team.members]]
+name = "assistant"
+type = "custom"
+tool_name = "ask_assistant"
+tool_description = "Ask assistant for help."
+model = "openai:gpt-4o"
+temperature = 0.3
+max_tokens = 4096
+timeout_seconds = 120
+
+[team.members.system_instruction]
+text = "You are a helpful assistant."
+
+[team.members.plugin]
+agent_module = "mixseek.agents.plain.agent"
+agent_class = "PlainAgent"
+"""
+        toml_file = Path(tmp_path) / "team.toml"  # type: ignore[arg-type]
+        toml_file.write_text(toml_content)
+
+        # Load team settings - should not set tool_settings
+        from mixseek.config.manager import ConfigurationManager
+
+        manager = ConfigurationManager()
+        manager.load_team_settings(toml_file)
+
+        # Verify tool_settings were not set
+        result = get_claudecode_tool_settings()
+        assert result is None
+
+    def test_reset_configuration_manager_patch(self) -> None:
+        """reset_configuration_manager_patch restores original function."""
+        from mixseek.config.manager import ConfigurationManager
+
+        from mixseek_plus import core_patch
+        from mixseek_plus.core_patch import (
+            patch_core,
+            reset_configuration_manager_patch,
+        )
+
+        # Store original function reference
+        original_func = ConfigurationManager.load_team_settings
+
+        # Reset patch state
+        core_patch._PATCH_APPLIED = False
+        core_patch._ORIGINAL_LOAD_TEAM_SETTINGS = None
+
+        # Apply patch
+        patch_core()
+
+        # Verify patch was applied
+        assert core_patch._ORIGINAL_LOAD_TEAM_SETTINGS is not None
+
+        # Reset
+        reset_configuration_manager_patch()
+
+        # Verify reset
+        assert core_patch._ORIGINAL_LOAD_TEAM_SETTINGS is None
+
+        # Verify function was restored (should be able to patch again)
+        core_patch._PATCH_APPLIED = False
+        patch_core()
+        assert core_patch._ORIGINAL_LOAD_TEAM_SETTINGS is not None
+
+        # Final cleanup - restore original
+        ConfigurationManager.load_team_settings = original_func  # type: ignore[method-assign]
+        core_patch._ORIGINAL_LOAD_TEAM_SETTINGS = None

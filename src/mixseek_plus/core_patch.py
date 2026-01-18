@@ -9,6 +9,8 @@ that are used by Leader/Evaluator/Judgment agents.
 """
 
 from collections.abc import Callable
+from pathlib import Path
+from typing import Any
 
 from pydantic_ai.models import Model
 
@@ -21,6 +23,9 @@ _ORIGINAL_FUNCTION: Callable[[str], Model] | None = None
 
 # Module-level state for ClaudeCode tool_settings
 _CLAUDECODE_TOOL_SETTINGS: ClaudeCodeToolSettings | None = None
+
+# Module-level state for ConfigurationManager patch
+_ORIGINAL_LOAD_TEAM_SETTINGS: Callable[..., Any] | None = None
 
 
 class GroqNotPatchedError(Exception):
@@ -151,6 +156,58 @@ def clear_claudecode_tool_settings() -> None:
     _CLAUDECODE_TOOL_SETTINGS = None
 
 
+def apply_leader_tool_settings(leader_dict: dict[str, Any]) -> None:
+    """Apply leader tool_settings from TOML configuration.
+
+    Extracts tool_settings.claudecode from leader dict and
+    calls configure_claudecode_tool_settings() automatically.
+
+    Args:
+        leader_dict: TeamSettings.leader dict from TOML
+    """
+    tool_settings = leader_dict.get("tool_settings")
+    if not tool_settings:
+        return
+
+    claudecode_settings = tool_settings.get("claudecode")
+    if claudecode_settings:
+        configure_claudecode_tool_settings(claudecode_settings)
+
+
+def _patch_configuration_manager() -> None:
+    """Patch ConfigurationManager.load_team_settings for auto tool_settings."""
+    global _ORIGINAL_LOAD_TEAM_SETTINGS
+
+    from mixseek.config.manager import ConfigurationManager
+
+    _ORIGINAL_LOAD_TEAM_SETTINGS = ConfigurationManager.load_team_settings
+
+    original_func = _ORIGINAL_LOAD_TEAM_SETTINGS
+
+    def patched_load_team_settings(
+        self: ConfigurationManager, toml_file: Path, **extra_kwargs: Any
+    ) -> Any:
+        team_settings = original_func(self, toml_file, **extra_kwargs)
+
+        # Auto-apply leader.tool_settings.claudecode
+        apply_leader_tool_settings(team_settings.leader)
+
+        return team_settings
+
+    ConfigurationManager.load_team_settings = patched_load_team_settings  # type: ignore[method-assign]
+
+
+def reset_configuration_manager_patch() -> None:
+    """Reset ConfigurationManager.load_team_settings to original (for testing only)."""
+    global _ORIGINAL_LOAD_TEAM_SETTINGS
+
+    if _ORIGINAL_LOAD_TEAM_SETTINGS is not None:
+        from mixseek.config.manager import ConfigurationManager
+
+        ConfigurationManager.load_team_settings = _ORIGINAL_LOAD_TEAM_SETTINGS  # type: ignore[method-assign]
+        _ORIGINAL_LOAD_TEAM_SETTINGS = None
+
+
 def patch_core() -> None:
     """Extend mixseek-core's create_authenticated_model to support Groq and ClaudeCode.
 
@@ -223,6 +280,9 @@ def patch_core() -> None:
     # These modules hold their own reference that won't be updated by
     # patching auth.create_authenticated_model alone
     _patch_module_references(patched_create_authenticated_model)
+
+    # Patch ConfigurationManager.load_team_settings for auto leader.tool_settings
+    _patch_configuration_manager()
 
     _PATCH_APPLIED = True
 
