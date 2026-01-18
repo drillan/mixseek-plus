@@ -7,7 +7,14 @@ from mixseek_plus.agents import (
     register_claudecode_agents,
     register_groq_agents,
 )
-from mixseek_plus.core_patch import GroqNotPatchedError, check_groq_support, patch_core
+from mixseek_plus.core_patch import (
+    GroqNotPatchedError,
+    check_groq_support,
+    clear_claudecode_tool_settings,
+    configure_claudecode_tool_settings,
+    get_claudecode_tool_settings,
+    patch_core,
+)
 from mixseek_plus.errors import ClaudeCodeNotPatchedError, ModelCreationError
 from mixseek_plus.model_factory import create_model
 from mixseek_plus.providers.claudecode import create_claudecode_model
@@ -23,6 +30,9 @@ __all__ = [
     "register_groq_agents",
     "register_claudecode_agents",
     "patch_core",
+    "configure_claudecode_tool_settings",
+    "get_claudecode_tool_settings",
+    "clear_claudecode_tool_settings",
     "GroqNotPatchedError",
     "check_groq_support",
 ]
