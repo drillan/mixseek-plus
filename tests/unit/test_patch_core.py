@@ -14,6 +14,8 @@ from unittest.mock import patch
 import pytest
 from claudecode_model import ClaudeCodeModel
 
+from mixseek_plus.providers.claudecode import FixedTokenClaudeCodeModel
+
 
 class TestPatchCoreClaudeCodeSupport:
     """Tests for ClaudeCode support via patch_core() (CC-050, CC-051, CC-052)."""
@@ -268,9 +270,13 @@ class TestClaudeCodeToolSettingsSupport:
         # Import after patching
         from mixseek.core.auth import create_authenticated_model
 
-        # Mock ClaudeCodeModel to capture initialization args
-        with patch("mixseek_plus.providers.claudecode.ClaudeCodeModel") as mock_model:
-            mock_model.return_value = ClaudeCodeModel(model_name="claude-sonnet-4-5")
+        # Mock FixedTokenClaudeCodeModel to capture initialization args
+        with patch(
+            "mixseek_plus.providers.claudecode.FixedTokenClaudeCodeModel"
+        ) as mock_model:
+            mock_model.return_value = FixedTokenClaudeCodeModel(
+                model_name="claude-sonnet-4-5"
+            )
             create_authenticated_model("claudecode:claude-sonnet-4-5")
 
             # Verify tool_settings were passed
