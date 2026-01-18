@@ -1,19 +1,18 @@
 """Core patching functionality for mixseek-core integration.
 
 This module provides patch_core() which extends mixseek-core's
-create_authenticated_model to support Groq models.
+create_authenticated_model to support Groq and ClaudeCode models.
 """
 
 from collections.abc import Callable
 
 from pydantic_ai.models import Model
 
+from mixseek_plus.providers import CLAUDECODE_PROVIDER_PREFIX, GROQ_PROVIDER_PREFIX
+
 # Module-level state to track if patch has been applied
 _PATCH_APPLIED = False
 _ORIGINAL_FUNCTION: Callable[[str], Model] | None = None
-
-# Constant for Groq provider prefix
-GROQ_PROVIDER_PREFIX = "groq:"
 
 
 class GroqNotPatchedError(Exception):
@@ -83,24 +82,25 @@ def reset_patch_state() -> None:
 
 
 def patch_core() -> None:
-    """Extend mixseek-core's create_authenticated_model to support Groq.
+    """Extend mixseek-core's create_authenticated_model to support Groq and ClaudeCode.
 
     This function patches mixseek-core's authentication module to add
-    support for the groq: model prefix. After calling this function,
-    Leader and Evaluator agents can use Groq models.
+    support for the groq: and claudecode: model prefixes. After calling
+    this function, Leader and Evaluator agents can use these models.
 
     Usage:
         import mixseek_plus
         mixseek_plus.patch_core()
 
-        # Now Leader/Evaluator can use groq: models
+        # Now Leader/Evaluator can use groq: and claudecode: models
         from mixseek.agents.leader import LeaderConfig
         config = LeaderConfig(model="groq:llama-3.3-70b-versatile", ...)
+        config = LeaderConfig(model="claudecode:claude-sonnet-4-5", ...)
 
     Note:
         - This function is idempotent - calling it multiple times is safe
         - The patch is applied at module level and persists for the session
-        - Must be called explicitly before using groq: with Leader/Evaluator
+        - Must be called explicitly before using groq:/claudecode: with Leader/Evaluator
     """
     global _PATCH_APPLIED, _ORIGINAL_FUNCTION
 
@@ -110,6 +110,7 @@ def patch_core() -> None:
 
     from mixseek.core import auth
 
+    from mixseek_plus.providers.claudecode import create_claudecode_model
     from mixseek_plus.providers.groq import create_groq_model
 
     # Store original function for delegation
@@ -118,19 +119,23 @@ def patch_core() -> None:
     _ORIGINAL_FUNCTION = original_func
 
     def patched_create_authenticated_model(model_id: str) -> Model:
-        """Extended create_authenticated_model with Groq support.
+        """Extended create_authenticated_model with Groq and ClaudeCode support.
 
         Args:
             model_id: Model identifier with provider prefix
-                     (e.g., "groq:llama-3.3-70b-versatile")
+                     (e.g., "groq:llama-3.3-70b-versatile",
+                      "claudecode:claude-sonnet-4-5")
 
         Returns:
             Model instance appropriate for the provider
 
         Raises:
             ModelCreationError: If model creation fails
-                               (including Groq-specific errors)
+                               (including Groq/ClaudeCode-specific errors)
         """
+        if model_id.startswith(CLAUDECODE_PROVIDER_PREFIX):
+            model_name = model_id[len(CLAUDECODE_PROVIDER_PREFIX) :]
+            return create_claudecode_model(model_name)
         if model_id.startswith(GROQ_PROVIDER_PREFIX):
             model_name = model_id[len(GROQ_PROVIDER_PREFIX) :]
             return create_groq_model(model_name)

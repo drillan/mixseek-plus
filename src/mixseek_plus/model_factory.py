@@ -7,9 +7,11 @@ from pydantic_ai.models.groq import GroqModel
 from mixseek_plus.errors import ModelCreationError
 from mixseek_plus.providers import (
     ALL_PROVIDER_PREFIXES,
+    CLAUDECODE_PROVIDER_PREFIX,
     CORE_PROVIDER_PREFIXES,
     GROQ_PROVIDER_PREFIX,
 )
+from mixseek_plus.providers.claudecode import create_claudecode_model
 from mixseek_plus.providers.groq import create_groq_model
 
 
@@ -70,12 +72,16 @@ def create_model(model_id: str) -> GroqModel | Model:
             Groqモデルの場合: "groq:{model-name}"
             例: "groq:llama-3.3-70b-versatile", "groq:qwen/qwen3-32b"
 
+            ClaudeCodeモデルの場合: "claudecode:{model-name}"
+            例: "claudecode:claude-sonnet-4-5", "claudecode:claude-haiku-4-5"
+
             mixseek-coreモデルの場合: "{provider}:{model-name}"
             例: "openai:gpt-4o", "anthropic:claude-sonnet-4-5-20250929"
 
     Returns:
         LLMモデルインスタンス。
         - Groqモデルの場合: pydantic_ai.models.groq.GroqModel
+        - ClaudeCodeモデルの場合: claudecode_model.ClaudeCodeModel
         - mixseek-coreモデルの場合: 各プロバイダーのModelサブクラス
 
     Raises:
@@ -87,6 +93,11 @@ def create_model(model_id: str) -> GroqModel | Model:
     # プロバイダーの抽出と検証
     provider_prefix = _get_provider_prefix(model_id)
     _validate_provider(provider_prefix)
+
+    # ClaudeCodeプロバイダーの場合
+    if provider_prefix == CLAUDECODE_PROVIDER_PREFIX:
+        model_name = model_id[len(CLAUDECODE_PROVIDER_PREFIX) :]
+        return create_claudecode_model(model_name)
 
     # Groqプロバイダーの場合
     if provider_prefix == GROQ_PROVIDER_PREFIX:

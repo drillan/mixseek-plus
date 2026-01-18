@@ -5,9 +5,59 @@ Tests cover:
 - GR-061: Leader/Evaluator groq: model support after patch
 - GR-062: Idempotency of patch_core()
 - GR-063: Unpatched usage detection and error message
+- CC-050, CC-051, CC-052: ClaudeCode support via patch_core()
 """
 
 import pytest
+from claudecode_model import ClaudeCodeModel
+
+
+class TestPatchCoreClaudeCodeSupport:
+    """Tests for ClaudeCode support via patch_core() (CC-050, CC-051, CC-052)."""
+
+    def test_patched_create_model_handles_claudecode_prefix(self) -> None:
+        """CC-050, CC-051: After patch, claudecode: prefix should work."""
+        from mixseek_plus import core_patch, patch_core
+
+        # Reset and apply patch
+        core_patch._PATCH_APPLIED = False
+        patch_core()
+
+        # Import after patching
+        from mixseek.core.auth import create_authenticated_model
+
+        # This should work after patching
+        model = create_authenticated_model("claudecode:claude-sonnet-4-5")
+
+        assert isinstance(model, ClaudeCodeModel)
+
+    def test_patched_create_model_handles_claudecode_haiku(self) -> None:
+        """CC-051: After patch, claudecode:claude-haiku-4-5 should work."""
+        from mixseek_plus import core_patch, patch_core
+
+        # Reset and apply patch
+        core_patch._PATCH_APPLIED = False
+        patch_core()
+
+        from mixseek.core.auth import create_authenticated_model
+
+        model = create_authenticated_model("claudecode:claude-haiku-4-5")
+
+        assert isinstance(model, ClaudeCodeModel)
+
+    def test_patched_create_model_handles_claudecode_opus(self) -> None:
+        """CC-051: After patch, claudecode:claude-opus-4-5 should work."""
+        from mixseek_plus import core_patch, patch_core
+
+        # Reset and apply patch
+        core_patch._PATCH_APPLIED = False
+        patch_core()
+
+        from mixseek.core.auth import create_authenticated_model
+
+        model = create_authenticated_model("claudecode:claude-opus-4-5")
+
+        assert isinstance(model, ClaudeCodeModel)
 
 
 class TestPatchCoreFunction:

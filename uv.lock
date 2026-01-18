@@ -364,7 +364,7 @@ wheels = [
 [[package]]
 name = "claudecode-model"
 version = "0.1.0"
-source = { git = "https://github.com/drillan/claudecode-model.git#cc0dbbead9c9aec929fa18aed6cd0427119fd401" }
+source = { git = "https://github.com/drillan/claudecode-model.git#83acf450fa8179a16994708e3176c74ada5bbc64" }
 dependencies = [
     { name = "pydantic-ai" },
 ]

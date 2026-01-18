@@ -3,6 +3,9 @@
 # Groqプロバイダーの識別子
 GROQ_PROVIDER_PREFIX: str = "groq:"
 
+# ClaudeCodeプロバイダーの識別子
+CLAUDECODE_PROVIDER_PREFIX: str = "claudecode:"
+
 # mixseek-coreでサポートされているプロバイダープレフィックス一覧
 CORE_PROVIDER_PREFIXES: frozenset[str] = frozenset(
     {
@@ -16,4 +19,7 @@ CORE_PROVIDER_PREFIXES: frozenset[str] = frozenset(
 )
 
 # 全サポートプロバイダープレフィックス（mixseek-plus + mixseek-core）
-ALL_PROVIDER_PREFIXES: frozenset[str] = CORE_PROVIDER_PREFIXES | {GROQ_PROVIDER_PREFIX}
+ALL_PROVIDER_PREFIXES: frozenset[str] = CORE_PROVIDER_PREFIXES | {
+    GROQ_PROVIDER_PREFIX,
+    CLAUDECODE_PROVIDER_PREFIX,
+}

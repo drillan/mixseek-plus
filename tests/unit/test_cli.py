@@ -127,3 +127,65 @@ class TestCLIEntryPoint:
         ensure_patched()
 
         assert core_patch.is_patched() is True
+
+
+class TestCLIClaudeCodeIntegration:
+    """Tests for ClaudeCode model integration via CLI (CC-052)."""
+
+    def test_claudecode_model_available_after_cli_import(
+        self, reset_patch_state: None
+    ) -> None:
+        """CC-052: After importing CLI, claudecode: models should work."""
+        from mixseek_plus import core_patch
+
+        # Reset patch state
+        core_patch._PATCH_APPLIED = False
+
+        # Import CLI (should trigger patch)
+        import importlib
+        import mixseek_plus.cli
+
+        importlib.reload(mixseek_plus.cli)
+
+        # Now create_authenticated_model should accept claudecode:
+        from claudecode_model import ClaudeCodeModel
+        from mixseek.core.auth import create_authenticated_model
+
+        model = create_authenticated_model("claudecode:claude-sonnet-4-5")
+        assert isinstance(model, ClaudeCodeModel)
+
+    def test_cli_registers_claudecode_agents(self, reset_patch_state: None) -> None:
+        """CC-052: CLI should register ClaudeCode agents for TOML config."""
+        from mixseek_plus import core_patch
+
+        # Reset patch state
+        core_patch._PATCH_APPLIED = False
+
+        # Import CLI (should trigger registration)
+        import importlib
+        import mixseek_plus.cli
+
+        importlib.reload(mixseek_plus.cli)
+
+        # Verify ClaudeCode agents are registered
+        from mixseek.agents.member.factory import MemberAgentFactory
+
+        # Check that claudecode_plain is in supported types
+        supported_types = MemberAgentFactory.get_supported_types()
+        assert "claudecode_plain" in supported_types
+
+    def test_cli_patches_before_any_import(self, reset_patch_state: None) -> None:
+        """CC-052: Patch should be applied before mixseek-core modules load."""
+        from mixseek_plus import core_patch
+
+        # Reset patch state
+        core_patch._PATCH_APPLIED = False
+
+        # Import CLI
+        import importlib
+        import mixseek_plus.cli
+
+        importlib.reload(mixseek_plus.cli)
+
+        # Verify patch is applied at module level (not just in main)
+        assert core_patch.is_patched() is True

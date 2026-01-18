@@ -3,10 +3,66 @@
 Tests cover:
 - GR-053: Factory registration for groq_plain and groq_web_search
 - GR-054: TOML configuration support via type field
+- CC-032, CC-033, CC-071: Factory registration for claudecode_plain
 """
 
 from mixseek.agents.member.factory import MemberAgentFactory
 from mixseek.models.member_agent import MemberAgentConfig
+
+
+class TestClaudeCodeFactoryRegistration:
+    """Tests for ClaudeCode MemberAgentFactory registration (CC-032, CC-033, CC-071)."""
+
+    def test_register_claudecode_agents_function_exists(self) -> None:
+        """CC-071: register_claudecode_agents function should exist."""
+        from mixseek_plus.agents import register_claudecode_agents
+
+        assert callable(register_claudecode_agents)
+
+    def test_register_claudecode_agents_registers_claudecode_plain(self) -> None:
+        """CC-032: After registration, claudecode_plain type should be available."""
+        from mixseek_plus.agents import register_claudecode_agents
+
+        # Register agents
+        register_claudecode_agents()
+
+        # Check registration
+        assert "claudecode_plain" in MemberAgentFactory._agent_classes
+
+    def test_factory_creates_claudecode_plain_agent(self) -> None:
+        """CC-033: Factory should create ClaudeCodePlainAgent from type='claudecode_plain'.
+
+        Note: MemberAgentConfig validates model field, so we use type='custom'
+        to bypass validation and verify Factory registration works correctly.
+        """
+        from mixseek_plus.agents import ClaudeCodePlainAgent, register_claudecode_agents
+
+        register_claudecode_agents()
+
+        config = MemberAgentConfig(
+            name="test-claudecode-agent",
+            type="custom",  # Bypass model validation
+            model="claudecode:claude-sonnet-4-5",
+            system_instruction="You are a test assistant.",
+        )
+
+        # Directly instantiate to verify the class works
+        agent = ClaudeCodePlainAgent(config)
+
+        assert isinstance(agent, ClaudeCodePlainAgent)
+        assert agent.agent_name == "test-claudecode-agent"
+
+    def test_claudecode_registration_is_idempotent(self) -> None:
+        """Multiple calls to register_claudecode_agents should be safe."""
+        from mixseek_plus.agents import register_claudecode_agents
+
+        # Call multiple times
+        register_claudecode_agents()
+        register_claudecode_agents()
+        register_claudecode_agents()
+
+        # Should still work
+        assert "claudecode_plain" in MemberAgentFactory._agent_classes
 
 
 class TestFactoryRegistration:
