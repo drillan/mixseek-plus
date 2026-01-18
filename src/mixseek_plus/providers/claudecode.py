@@ -47,10 +47,10 @@ class FixedTokenClaudeCodeModel(ClaudeCodeModel):
         genai_pricesの計算式:
             uncached = input_tokens - cache_write - cache_read
 
-        CLIの場合:
+        CLIの場合（Anthropic API → pydantic-ai フィールド対応）:
             - input_tokens = uncached のみ
-            - cache_write = cache_creation_input_tokens
-            - cache_read = cache_read_input_tokens
+            - cache_write_tokens (pydantic-ai) = cache_creation_input_tokens (Anthropic API)
+            - cache_read_tokens (pydantic-ai) = cache_read_input_tokens (Anthropic API)
 
         補正後:
             - input_tokens = uncached + cache_write + cache_read
@@ -63,9 +63,10 @@ class FixedTokenClaudeCodeModel(ClaudeCodeModel):
         """
         usage = response.usage
 
-        total_input = (
-            usage.input_tokens + usage.cache_write_tokens + usage.cache_read_tokens
-        )
+        # 防御的にNoneチェックを追加（将来のpydantic-ai変更に備えて）
+        cache_write = usage.cache_write_tokens or 0
+        cache_read = usage.cache_read_tokens or 0
+        total_input = usage.input_tokens + cache_write + cache_read
 
         fixed_usage = RequestUsage(
             input_tokens=total_input,
