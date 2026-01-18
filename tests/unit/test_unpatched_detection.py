@@ -115,3 +115,56 @@ class TestGroqNotPatchedErrorClass:
         error = GroqNotPatchedError()
         assert str(error)  # Should have a message
         assert "patch_core" in str(error).lower()
+
+
+class TestClaudeCodeNotPatchedErrorClass:
+    """Test the ClaudeCodeNotPatchedError exception class (CC-052)."""
+
+    def test_error_inherits_from_exception(self) -> None:
+        """Test that ClaudeCodeNotPatchedError is a proper exception."""
+        from mixseek_plus.errors import ClaudeCodeNotPatchedError
+
+        assert issubclass(ClaudeCodeNotPatchedError, Exception)
+
+    def test_error_can_be_caught_as_exception(self) -> None:
+        """Test that ClaudeCodeNotPatchedError can be caught."""
+        from mixseek_plus.errors import ClaudeCodeNotPatchedError
+
+        try:
+            raise ClaudeCodeNotPatchedError()
+        except Exception as e:
+            assert isinstance(e, ClaudeCodeNotPatchedError)
+
+    def test_error_has_default_message(self) -> None:
+        """Test that ClaudeCodeNotPatchedError has a meaningful default message."""
+        from mixseek_plus.errors import ClaudeCodeNotPatchedError
+
+        error = ClaudeCodeNotPatchedError()
+        assert str(error)  # Should have a message
+        assert "patch_core" in str(error).lower()
+
+    def test_error_mentions_claudecode(self) -> None:
+        """Test that error message mentions ClaudeCode."""
+        from mixseek_plus.errors import ClaudeCodeNotPatchedError
+
+        error = ClaudeCodeNotPatchedError()
+        assert "claudecode" in str(error).lower()
+
+    def test_error_message_is_descriptive(self) -> None:
+        """Test that error message provides guidance."""
+        from mixseek_plus.errors import ClaudeCodeNotPatchedError
+
+        error = ClaudeCodeNotPatchedError()
+        message = str(error)
+
+        # Check for key informative components
+        assert len(message) > 50  # Should be reasonably detailed
+        assert "mixseek_plus.patch_core()" in message
+
+    def test_custom_message_override(self) -> None:
+        """Test that custom message can be provided."""
+        from mixseek_plus.errors import ClaudeCodeNotPatchedError
+
+        custom_message = "Custom error message"
+        error = ClaudeCodeNotPatchedError(custom_message)
+        assert str(error) == custom_message

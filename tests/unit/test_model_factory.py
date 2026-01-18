@@ -1,15 +1,44 @@
 """モデルファクトリーの単体テスト.
 
-GR-003 (mixseek-core委譲), GR-030, GR-031 の検証
+GR-003 (mixseek-core委譲), GR-030, GR-031, CC-010, CC-021 の検証
 """
 
 from unittest.mock import MagicMock, patch
 
 import pytest
+from claudecode_model import ClaudeCodeModel
 from pydantic_ai.models.groq import GroqModel
 
 from mixseek_plus import create_model
 from mixseek_plus.errors import ModelCreationError
+
+
+class TestCreateModelClaudeCodeProvider:
+    """ClaudeCodeプロバイダーでのcreate_model関数のテスト (CC-010, CC-021)."""
+
+    def test_create_model_with_claudecode_prefix(self) -> None:
+        """claudecode: プレフィックスでClaudeCodeModelが作成されることを確認."""
+        model = create_model("claudecode:claude-sonnet-4-5")
+
+        assert isinstance(model, ClaudeCodeModel)
+
+    def test_create_model_with_claudecode_haiku(self) -> None:
+        """claudecode: プレフィックスでHaikuモデルが作成されることを確認."""
+        model = create_model("claudecode:claude-haiku-4-5")
+
+        assert isinstance(model, ClaudeCodeModel)
+
+    def test_create_model_with_claudecode_opus(self) -> None:
+        """claudecode: プレフィックスでOpusモデルが作成されることを確認."""
+        model = create_model("claudecode:claude-opus-4-5")
+
+        assert isinstance(model, ClaudeCodeModel)
+
+    def test_create_model_with_claudecode_full_version(self) -> None:
+        """claudecode: フルバージョン指定でモデルが作成されることを確認."""
+        model = create_model("claudecode:claude-sonnet-4-5-20250929")
+
+        assert isinstance(model, ClaudeCodeModel)
 
 
 class TestCreateModelGroqProvider:

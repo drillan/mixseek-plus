@@ -29,3 +29,28 @@ class ModelCreationError(Exception):
         if suggestion:
             full_message += f"\n提案: {suggestion}"
         super().__init__(full_message)
+
+
+class ClaudeCodeNotPatchedError(Exception):
+    """ClaudeCodeモデルがパッチ未適用で使用された場合のエラー.
+
+    Leader/EvaluatorでClaudeCodeモデルを使用するには、
+    事前にmixseek_plus.patch_core()を呼び出す必要がある。
+    """
+
+    def __init__(self, message: str | None = None) -> None:
+        """ClaudeCodeNotPatchedErrorを初期化する.
+
+        Args:
+            message: カスタムエラーメッセージ（省略可）
+        """
+        if message is None:
+            message = (
+                "ClaudeCode models are not yet enabled for Leader/Evaluator. "
+                "Please call mixseek_plus.patch_core() before using claudecode: models. "
+                "Example:\n"
+                "    import mixseek_plus\n"
+                "    mixseek_plus.patch_core()\n"
+                "    # Now you can use claudecode: models with Leader/Evaluator"
+            )
+        super().__init__(message)
