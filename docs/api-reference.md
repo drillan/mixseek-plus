@@ -7,7 +7,7 @@ mixseek-plusのAPI仕様です。
 ### create_model
 
 ```python
-def create_model(model_id: str) -> GroqModel | Model
+def create_model(model_id: str) -> GroqModel | ClaudeCodeModel | Model
 ```
 
 モデルIDからLLMモデルインスタンスを作成します。
@@ -21,6 +21,7 @@ def create_model(model_id: str) -> GroqModel | Model
 **戻り値**
 
 - Groqモデルの場合: `pydantic_ai.models.groq.GroqModel`
+- ClaudeCodeモデルの場合: `claudecode_model.ClaudeCodeModel`
 - mixseek-coreモデルの場合: 各プロバイダーのModelサブクラス
 
 **例外**
@@ -35,6 +36,9 @@ from mixseek_plus import create_model
 # Groqモデル
 model = create_model("groq:llama-3.3-70b-versatile")
 
+# ClaudeCodeモデル
+model = create_model("claudecode:claude-sonnet-4-5")
+
 # OpenAIモデル
 model = create_model("openai:gpt-4o")
 ```
@@ -47,9 +51,9 @@ model = create_model("openai:gpt-4o")
 def patch_core() -> None
 ```
 
-mixseek-coreの `create_authenticated_model` を拡張してGroqサポートを追加します。
+mixseek-coreの `create_authenticated_model` を拡張してGroqおよびClaudeCodeサポートを追加します。
 
-Leader/EvaluatorエージェントでGroqモデルを使用する前に呼び出す必要があります。
+Leader/EvaluatorエージェントでGroqまたはClaudeCodeモデルを使用する前に呼び出す必要があります。
 この関数はべき等であり、複数回呼び出しても安全です。
 
 **使用例**
@@ -59,10 +63,11 @@ import mixseek_plus
 
 mixseek_plus.patch_core()
 
-# これでLeader/EvaluatorでGroqモデルが使用可能
+# これでLeader/EvaluatorでGroq/ClaudeCodeモデルが使用可能
 from mixseek.agents.leader import LeaderConfig
 
 config = LeaderConfig(model="groq:llama-3.3-70b-versatile", ...)
+config = LeaderConfig(model="claudecode:claude-sonnet-4-5", ...)
 ```
 
 ### check_groq_support
@@ -111,6 +116,27 @@ register_groq_agents()
 # これでTOML設定でgroq_plain/groq_web_searchが使用可能
 ```
 
+### register_claudecode_agents
+
+```python
+def register_claudecode_agents() -> None
+```
+
+ClaudeCodeエージェントを `MemberAgentFactory` に登録します。
+TOML設定で `claudecode_plain` タイプを使用する前に呼び出す必要があります。
+
+この関数はべき等であり、複数回呼び出しても安全です。
+
+**使用例**
+
+```python
+from mixseek_plus import register_claudecode_agents
+
+register_claudecode_agents()
+
+# これでTOML設定でclaudecode_plainが使用可能
+```
+
 ### GroqPlainAgent
 
 ```python
@@ -156,6 +182,57 @@ def __init__(self, config: MemberAgentConfig) -> None
 
 - `ValueError`: 認証に失敗した場合（APIキー未設定など）
 
+### ClaudeCodePlainAgent
+
+```python
+class ClaudeCodePlainAgent(BaseClaudeCodeAgent)
+```
+
+Claude Code CLIの組み込みツールを使用するMemberエージェントです。
+Bash、Read/Write/Edit、Glob/Grep、WebFetch/WebSearchなどの機能が統合されています。
+
+APIキーは不要です。Claude Code CLIのセッション認証を使用します。
+
+**コンストラクタ**
+
+```python
+def __init__(self, config: MemberAgentConfig) -> None
+```
+
+| 引数 | 型 | 説明 |
+|------|-----|------|
+| `config` | `MemberAgentConfig` | エージェント設定 |
+
+**例外**
+
+- `ValueError`: モデル作成に失敗した場合（Claude Code CLI未インストールなど）
+
+**tool_settings.claudecode設定**
+
+TOML設定の `[members.tool_settings.claudecode]` セクションで以下の設定が可能です：
+
+| 設定 | 型 | 説明 |
+|------|-----|------|
+| `allowed_tools` | `list[str]` | 許可するツールのリスト |
+| `disallowed_tools` | `list[str]` | 禁止するツールのリスト |
+| `permission_mode` | `str` | パーミッションモード |
+| `working_directory` | `str` | 作業ディレクトリ |
+| `max_turns` | `int` | 最大ターン数 |
+
+**使用例**
+
+```toml
+[[members]]
+name = "code-analyst"
+type = "claudecode_plain"
+model = "claudecode:claude-sonnet-4-5"
+system_instruction = "あなたはコード分析のスペシャリストです。"
+
+[members.tool_settings.claudecode]
+allowed_tools = ["Read", "Glob", "Grep"]
+permission_mode = "bypassPermissions"
+```
+
 ## Exceptions
 
 ### ModelCreationError
@@ -199,6 +276,35 @@ def __init__(self, message: str | None = None) -> None
 ```
 
 `message` を省略すると、解決方法を含むデフォルトメッセージが使用されます。
+
+### ClaudeCodeNotPatchedError
+
+```python
+class ClaudeCodeNotPatchedError(Exception)
+```
+
+`patch_core()` を呼び出さずにLeader/EvaluatorでClaudeCodeモデルを使用しようとした場合に発生する例外です。
+
+**コンストラクタ**
+
+```python
+def __init__(self, message: str | None = None) -> None
+```
+
+`message` を省略すると、解決方法を含むデフォルトメッセージが使用されます。
+
+**使用例**
+
+```python
+from mixseek_plus import ClaudeCodeNotPatchedError
+
+try:
+    # ClaudeCodeモデルを使用
+    pass
+except ClaudeCodeNotPatchedError:
+    import mixseek_plus
+    mixseek_plus.patch_core()
+```
 
 ### TavilySearchError
 
