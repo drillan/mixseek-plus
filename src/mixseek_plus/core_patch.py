@@ -11,9 +11,9 @@ that are used by Leader/Evaluator/Judgment agents.
 from __future__ import annotations
 
 import logging
-from collections.abc import Callable
+from collections.abc import Callable, Coroutine
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from pydantic_ai.models import Model
 
@@ -36,8 +36,8 @@ _CLAUDECODE_TOOL_SETTINGS: ClaudeCodeToolSettings | None = None
 # TeamSettings is imported at runtime in _patch_configuration_manager()
 _ORIGINAL_LOAD_TEAM_SETTINGS: Callable[..., TeamSettings] | None = None
 
-# Module-level state for RoundController patch (Issue #19)
-_ORIGINAL_EXECUTE_SINGLE_ROUND: Callable[..., object] | None = None
+# Module-level state for AggregationStore patch (Issue #19)
+_ORIGINAL_SAVE_AGGREGATION: Callable[..., Coroutine[Any, Any, None]] | None = None
 
 
 class GroqNotPatchedError(Exception):
@@ -265,36 +265,6 @@ def reset_configuration_manager_patch() -> None:
         _ORIGINAL_LOAD_TEAM_SETTINGS = None
 
 
-def check_member_tool_usage(
-    team_has_members: bool,
-    member_submissions_total_count: int,
-    team_id: str,
-) -> None:
-    """Check if Leader called any member tools and log warning if not.
-
-    This function implements Issue #19: Warning when Leader has members
-    but doesn't call any member tools. This typically indicates that
-    the Model implementation doesn't properly support function_tools.
-
-    Args:
-        team_has_members: True if team has member agents configured
-        member_submissions_total_count: Number of member tool calls made by Leader
-        team_id: Team identifier for logging context
-
-    Note:
-        This function only logs a warning - it does not raise an exception.
-        The warning helps developers identify model configuration issues early.
-    """
-    if team_has_members and member_submissions_total_count == 0:
-        logger.warning(
-            "Leader did not call any member tools (team_id=%s). "
-            "Model may not support function_tools properly. "
-            "Check if the model implementation handles "
-            "model_request_parameters.function_tools.",
-            team_id,
-        )
-
-
 def patch_core() -> None:
     """Extend mixseek-core's create_authenticated_model to support Groq and ClaudeCode.
 
@@ -371,8 +341,8 @@ def patch_core() -> None:
     # Patch ConfigurationManager.load_team_settings for auto leader.tool_settings
     _patch_configuration_manager()
 
-    # Patch RoundController._execute_single_round for member tool usage warning (Issue #19)
-    _patch_round_controller()
+    # Patch AggregationStore.save_aggregation for member tool usage warning (Issue #19)
+    _patch_aggregation_store()
 
     _PATCH_APPLIED = True
 
@@ -405,7 +375,7 @@ def _patch_module_references(patched_func: Callable[[str], Model]) -> None:
                 setattr(module, "create_authenticated_model", patched_func)
 
 
-def _patch_round_controller() -> None:
+def _patch_aggregation_store() -> None:
     """Patch AggregationStore.save_aggregation for member tool usage warning.
 
     This patch adds a warning when Leader has members but calls none (Issue #19).
@@ -415,15 +385,20 @@ def _patch_round_controller() -> None:
     which contains the total_count of member tool calls.
 
     Called internally by patch_core(). Stores the original method in
-    _ORIGINAL_EXECUTE_SINGLE_ROUND for potential restoration.
+    _ORIGINAL_SAVE_AGGREGATION for potential restoration.
+
+    Raises:
+        ImportError: If AggregationStore or MemberSubmissionsRecord cannot be
+            imported from mixseek-core. This indicates a version incompatibility
+            or missing dependency.
     """
-    global _ORIGINAL_EXECUTE_SINGLE_ROUND
+    global _ORIGINAL_SAVE_AGGREGATION
 
     from mixseek.storage.aggregation_store import AggregationStore
 
-    _ORIGINAL_EXECUTE_SINGLE_ROUND = AggregationStore.save_aggregation
+    _ORIGINAL_SAVE_AGGREGATION = AggregationStore.save_aggregation
 
-    original_func = _ORIGINAL_EXECUTE_SINGLE_ROUND
+    original_func = _ORIGINAL_SAVE_AGGREGATION
 
     from mixseek.agents.leader.models import MemberSubmissionsRecord
     from pydantic_ai.messages import ModelRequest, ModelResponse
@@ -440,10 +415,9 @@ def _patch_round_controller() -> None:
         MemberSubmissionsRecord before calling the original method.
         """
         # Check member tool usage before saving (Issue #19)
-        # Check if total_count == 0 (no member tool calls)
-        # Note: This warning is only useful if team has members configured,
-        # but we can't know that from here. The warning message guides
-        # the user to check their model implementation.
+        # LIMITATION: Cannot determine if team has members from AggregationStore context.
+        # This warning may fire for teams with no members (false positive).
+        # Future improvement: Pass team configuration or lookup member count from team_id.
         if aggregated.total_count == 0:
             logger.warning(
                 "Leader did not call any member tools (team_id=%s, round=%d). "
@@ -460,12 +434,12 @@ def _patch_round_controller() -> None:
     AggregationStore.save_aggregation = patched_save_aggregation  # type: ignore[method-assign]
 
 
-def reset_round_controller_patch() -> None:
+def reset_aggregation_store_patch() -> None:
     """Reset AggregationStore.save_aggregation to original (for testing only)."""
-    global _ORIGINAL_EXECUTE_SINGLE_ROUND
+    global _ORIGINAL_SAVE_AGGREGATION
 
-    if _ORIGINAL_EXECUTE_SINGLE_ROUND is not None:
+    if _ORIGINAL_SAVE_AGGREGATION is not None:
         from mixseek.storage.aggregation_store import AggregationStore
 
-        AggregationStore.save_aggregation = _ORIGINAL_EXECUTE_SINGLE_ROUND  # type: ignore[method-assign, assignment]
-        _ORIGINAL_EXECUTE_SINGLE_ROUND = None
+        AggregationStore.save_aggregation = _ORIGINAL_SAVE_AGGREGATION  # type: ignore[method-assign, assignment]
+        _ORIGINAL_SAVE_AGGREGATION = None
