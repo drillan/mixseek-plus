@@ -197,6 +197,51 @@ import mixseek_plus
 mixseek_plus.patch_core()
 ```
 
+### Leader/Evaluator/JudgmentでのClaudeCode tool_settings設定
+
+Leader/Evaluator/JudgmentエージェントでClaudeCodeを使用する際に、`permission_mode`などのツール設定を適用するには、`configure_claudecode_tool_settings()`を使用します。
+
+```python
+import mixseek_plus
+
+# 1. ClaudeCode tool_settingsを設定（patch_coreの前後どちらでも可）
+mixseek_plus.configure_claudecode_tool_settings({
+    "permission_mode": "bypassPermissions",  # パーミッション確認をスキップ
+    "working_directory": "/workspace",        # 作業ディレクトリ
+})
+
+# 2. パッチを適用
+mixseek_plus.patch_core()
+
+# これでLeader/Evaluator/JudgmentがClaudeCodeの
+# Bash、Write等のツールを制限なく使用できる
+```
+
+**configure_claudecode_tool_settingsオプション:**
+
+| オプション | 型 | 説明 |
+|------------|-----|------|
+| `permission_mode` | `str` | パーミッションモード（`"bypassPermissions"` で確認スキップ） |
+| `working_directory` | `str` | 作業ディレクトリ |
+| `allowed_tools` | `list[str]` | 許可するツールのリスト |
+| `disallowed_tools` | `list[str]` | 禁止するツールのリスト |
+| `max_turns` | `int` | 最大ターン数 |
+
+**設定のクリア:**
+
+```python
+# 設定をクリアして、デフォルト動作に戻す
+mixseek_plus.clear_claudecode_tool_settings()
+```
+
+**現在の設定を取得:**
+
+```python
+# 現在の設定を確認
+settings = mixseek_plus.get_claudecode_tool_settings()
+print(settings)  # {"permission_mode": "bypassPermissions", ...}
+```
+
 ### TOML設定例（Groq）
 
 ```toml

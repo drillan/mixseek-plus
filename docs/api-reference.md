@@ -70,6 +70,89 @@ config = LeaderConfig(model="groq:llama-3.3-70b-versatile", ...)
 config = LeaderConfig(model="claudecode:claude-sonnet-4-5", ...)
 ```
 
+### configure_claudecode_tool_settings
+
+```python
+def configure_claudecode_tool_settings(settings: ClaudeCodeToolSettings) -> None
+```
+
+Leader/Evaluator/JudgmentエージェントでClaudeCodeを使用する際のツール設定を登録します。
+
+`patch_core()` の前後どちらで呼び出しても有効です。設定は `patch_core()` によって作成されるClaudeCodeモデルに適用されます。
+
+**引数**
+
+| 名前 | 型 | 説明 |
+|------|-----|------|
+| `settings` | `ClaudeCodeToolSettings` | ClaudeCode固有のツール設定 |
+
+**ClaudeCodeToolSettings**
+
+| キー | 型 | 説明 |
+|------|-----|------|
+| `permission_mode` | `str` | パーミッションモード（`"bypassPermissions"` で確認スキップ） |
+| `working_directory` | `str` | 作業ディレクトリ |
+| `allowed_tools` | `list[str]` | 許可するツールのリスト |
+| `disallowed_tools` | `list[str]` | 禁止するツールのリスト |
+| `max_turns` | `int` | 最大ターン数 |
+
+**使用例**
+
+```python
+import mixseek_plus
+
+# ツール設定を登録
+mixseek_plus.configure_claudecode_tool_settings({
+    "permission_mode": "bypassPermissions",
+    "working_directory": "/workspace",
+})
+
+# パッチを適用（設定が反映される）
+mixseek_plus.patch_core()
+```
+
+### get_claudecode_tool_settings
+
+```python
+def get_claudecode_tool_settings() -> ClaudeCodeToolSettings | None
+```
+
+現在登録されているClaudeCodeツール設定を取得します。
+
+**戻り値**
+
+- 設定が登録されている場合: `ClaudeCodeToolSettings`
+- 設定が登録されていない場合: `None`
+
+**使用例**
+
+```python
+import mixseek_plus
+
+settings = mixseek_plus.get_claudecode_tool_settings()
+if settings:
+    print(settings.get("permission_mode"))
+```
+
+### clear_claudecode_tool_settings
+
+```python
+def clear_claudecode_tool_settings() -> None
+```
+
+登録されているClaudeCodeツール設定をクリアします。
+
+クリア後はデフォルトのClaudeCode動作に戻ります。
+
+**使用例**
+
+```python
+import mixseek_plus
+
+# 設定をクリア
+mixseek_plus.clear_claudecode_tool_settings()
+```
+
 ### check_groq_support
 
 ```python

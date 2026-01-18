@@ -2,6 +2,10 @@
 
 This module provides patch_core() which extends mixseek-core's
 create_authenticated_model to support Groq and ClaudeCode models.
+
+Also provides configure_claudecode_tool_settings() for configuring
+ClaudeCode-specific tool settings (permission_mode, working_directory, etc.)
+that are used by Leader/Evaluator/Judgment agents.
 """
 
 from collections.abc import Callable
@@ -9,10 +13,14 @@ from collections.abc import Callable
 from pydantic_ai.models import Model
 
 from mixseek_plus.providers import CLAUDECODE_PROVIDER_PREFIX, GROQ_PROVIDER_PREFIX
+from mixseek_plus.providers.claudecode import ClaudeCodeToolSettings
 
 # Module-level state to track if patch has been applied
 _PATCH_APPLIED = False
 _ORIGINAL_FUNCTION: Callable[[str], Model] | None = None
+
+# Module-level state for ClaudeCode tool_settings
+_CLAUDECODE_TOOL_SETTINGS: ClaudeCodeToolSettings | None = None
 
 
 class GroqNotPatchedError(Exception):
@@ -81,6 +89,68 @@ def reset_patch_state() -> None:
     _ORIGINAL_FUNCTION = None
 
 
+def configure_claudecode_tool_settings(
+    settings: ClaudeCodeToolSettings,
+) -> None:
+    """Configure ClaudeCode-specific tool_settings for Leader/Evaluator/Judgment.
+
+    This function registers tool_settings that will be applied when
+    ClaudeCode models are created via patch_core(). This allows
+    Leader/Evaluator/Judgment agents to use ClaudeCode features
+    like permission_mode, working_directory, etc.
+
+    Args:
+        settings: ClaudeCode tool settings dictionary containing:
+            - permission_mode: Permission mode (e.g., "bypassPermissions")
+            - working_directory: Working directory path
+            - allowed_tools: List of allowed tools
+            - disallowed_tools: List of disallowed tools
+            - max_turns: Maximum number of turns
+
+    Usage:
+        import mixseek_plus
+
+        # Configure tool_settings before patching
+        mixseek_plus.configure_claudecode_tool_settings({
+            "permission_mode": "bypassPermissions",
+            "working_directory": "/workspace",
+        })
+
+        # Apply patch - will use configured settings
+        mixseek_plus.patch_core()
+
+        # Now Leader/Evaluator can use claudecode: with tool_settings
+        from mixseek.agents.leader import LeaderConfig
+        config = LeaderConfig(model="claudecode:claude-sonnet-4-5", ...)
+
+    Note:
+        - Settings can be configured before or after patch_core() is called
+        - New settings override previous settings
+        - Use clear_claudecode_tool_settings() to remove settings
+    """
+    global _CLAUDECODE_TOOL_SETTINGS
+    _CLAUDECODE_TOOL_SETTINGS = settings
+
+
+def get_claudecode_tool_settings() -> ClaudeCodeToolSettings | None:
+    """Get the currently configured ClaudeCode tool_settings.
+
+    Returns:
+        ClaudeCode tool settings if configured, None otherwise
+    """
+    return _CLAUDECODE_TOOL_SETTINGS
+
+
+def clear_claudecode_tool_settings() -> None:
+    """Clear the configured ClaudeCode tool_settings.
+
+    This removes any previously configured tool_settings,
+    reverting to default ClaudeCode behavior.
+    """
+    global _CLAUDECODE_TOOL_SETTINGS
+    _CLAUDECODE_TOOL_SETTINGS = None
+
+
 def patch_core() -> None:
     """Extend mixseek-core's create_authenticated_model to support Groq and ClaudeCode.
 
@@ -135,7 +205,10 @@ def patch_core() -> None:
         """
         if model_id.startswith(CLAUDECODE_PROVIDER_PREFIX):
             model_name = model_id[len(CLAUDECODE_PROVIDER_PREFIX) :]
-            return create_claudecode_model(model_name)
+            # Use globally configured tool_settings if available
+            return create_claudecode_model(
+                model_name, tool_settings=_CLAUDECODE_TOOL_SETTINGS
+            )
         if model_id.startswith(GROQ_PROVIDER_PREFIX):
             model_name = model_id[len(GROQ_PROVIDER_PREFIX) :]
             return create_groq_model(model_name)
