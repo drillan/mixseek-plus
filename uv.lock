@@ -1672,6 +1672,11 @@ dependencies = [
     { name = "tavily-python" },
 ]
 
+[package.optional-dependencies]
+logfire = [
+    { name = "logfire" },
+]
+
 [package.dev-dependencies]
 dev = [
     { name = "mypy" },
@@ -1689,10 +1694,12 @@ docs = [
 [package.metadata]
 requires-dist = [
     { name = "claudecode-model", git = "https://github.com/drillan/claudecode-model.git" },
+    { name = "logfire", marker = "extra == 'logfire'", specifier = ">=4.15.1" },
     { name = "mixseek-core", git = "https://github.com/mixseek/mixseek-core.git" },
     { name = "pydantic-ai" },
     { name = "tavily-python", specifier = ">=0.7.4" },
 ]
+provides-extras = ["logfire"]
 
 [package.metadata.requires-dev]
 dev = [

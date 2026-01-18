@@ -17,6 +17,12 @@ dependencies = [
 [project.scripts]
 mixseek = "mixseek_plus.cli:main"
 
+[project.optional-dependencies]
+# Observability with Logfire (optional for development/debugging)
+logfire = [
+    "logfire>=4.15.1",
+]
+
 [build-system]
 requires = ["uv_build>=0.9.24,<0.10.0"]
 build-backend = "uv_build"
