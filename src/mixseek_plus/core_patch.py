@@ -8,13 +8,11 @@ from collections.abc import Callable
 
 from pydantic_ai.models import Model
 
+from mixseek_plus.providers import CLAUDECODE_PROVIDER_PREFIX, GROQ_PROVIDER_PREFIX
+
 # Module-level state to track if patch has been applied
 _PATCH_APPLIED = False
 _ORIGINAL_FUNCTION: Callable[[str], Model] | None = None
-
-# Constants for provider prefixes
-GROQ_PROVIDER_PREFIX = "groq:"
-CLAUDECODE_PROVIDER_PREFIX = "claudecode:"
 
 
 class GroqNotPatchedError(Exception):

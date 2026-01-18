@@ -7,7 +7,7 @@ following the same pattern as BaseGroqAgent.
 import time
 from abc import abstractmethod
 from dataclasses import dataclass
-from typing import Any, TypedDict, cast
+from typing import Any, cast
 
 from claudecode_model import CLIExecutionError, CLINotFoundError, CLIResponseParseError
 from pydantic_ai import Agent
@@ -21,23 +21,7 @@ from mixseek_plus.providers.claudecode import (
     ClaudeCodeToolSettings,
     create_claudecode_model,
 )
-
-
-class UsageInfo(TypedDict, total=False):
-    """Usage information for LLM calls."""
-
-    total_tokens: int | None
-    prompt_tokens: int | None
-    completion_tokens: int | None
-    requests: int | None
-
-
-class AgentMetadata(TypedDict, total=False):
-    """Metadata for agent execution."""
-
-    model_id: str
-    temperature: float | None
-    max_tokens: int | None
+from mixseek_plus.types import AgentMetadata, UsageInfo
 
 
 @dataclass
@@ -142,7 +126,7 @@ class BaseClaudeCodeAgent(BaseMemberAgent):
         return (str(error), "EXECUTION_ERROR")
 
     @abstractmethod
-    def _get_agent(self) -> Agent[Any, str]:
+    def _get_agent(self) -> Agent[ClaudeCodeAgentDeps, str]:
         """Get the Pydantic AI agent instance.
 
         Returns:

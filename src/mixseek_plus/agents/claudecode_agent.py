@@ -1,10 +1,8 @@
 """ClaudeCode Plain Member Agent implementation.
 
 This module implements a custom Member Agent that uses ClaudeCode models
-via mixseek-plus's create_model() function.
+via mixseek-plus's create_claudecode_model() function.
 """
-
-from typing import Any
 
 from pydantic_ai import Agent
 from pydantic_ai.settings import ModelSettings
@@ -88,7 +86,7 @@ class ClaudeCodePlainAgent(BaseClaudeCodeAgent):
 
         return settings
 
-    def _get_agent(self) -> Agent[Any, str]:
+    def _get_agent(self) -> Agent[ClaudeCodeAgentDeps, str]:
         """Get the Pydantic AI agent instance.
 
         Returns:
