@@ -11,9 +11,9 @@ that are used by Leader/Evaluator/Judgment agents.
 from __future__ import annotations
 
 import logging
-from collections.abc import Callable
+from collections.abc import Callable, Coroutine
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from pydantic_ai.models import Model
 
@@ -35,6 +35,9 @@ _CLAUDECODE_TOOL_SETTINGS: ClaudeCodeToolSettings | None = None
 # Module-level state for ConfigurationManager patch
 # TeamSettings is imported at runtime in _patch_configuration_manager()
 _ORIGINAL_LOAD_TEAM_SETTINGS: Callable[..., TeamSettings] | None = None
+
+# Module-level state for AggregationStore patch (Issue #19)
+_ORIGINAL_SAVE_AGGREGATION: Callable[..., Coroutine[Any, Any, None]] | None = None
 
 
 class GroqNotPatchedError(Exception):
@@ -338,6 +341,9 @@ def patch_core() -> None:
     # Patch ConfigurationManager.load_team_settings for auto leader.tool_settings
     _patch_configuration_manager()
 
+    # Patch AggregationStore.save_aggregation for member tool usage warning (Issue #19)
+    _patch_aggregation_store()
+
     _PATCH_APPLIED = True
 
 
@@ -367,3 +373,73 @@ def _patch_module_references(patched_func: Callable[[str], Model]) -> None:
             module = sys.modules[module_name]
             if hasattr(module, "create_authenticated_model"):
                 setattr(module, "create_authenticated_model", patched_func)
+
+
+def _patch_aggregation_store() -> None:
+    """Patch AggregationStore.save_aggregation for member tool usage warning.
+
+    This patch adds a warning when Leader has members but calls none (Issue #19).
+    The warning helps identify models that don't properly support function_tools.
+
+    We patch save_aggregation because it receives MemberSubmissionsRecord
+    which contains the total_count of member tool calls.
+
+    Called internally by patch_core(). Stores the original method in
+    _ORIGINAL_SAVE_AGGREGATION for potential restoration.
+
+    Raises:
+        ImportError: If AggregationStore or MemberSubmissionsRecord cannot be
+            imported from mixseek-core. This indicates a version incompatibility
+            or missing dependency.
+    """
+    global _ORIGINAL_SAVE_AGGREGATION
+
+    from mixseek.storage.aggregation_store import AggregationStore
+
+    _ORIGINAL_SAVE_AGGREGATION = AggregationStore.save_aggregation
+
+    original_func = _ORIGINAL_SAVE_AGGREGATION
+
+    from mixseek.agents.leader.models import MemberSubmissionsRecord
+    from pydantic_ai.messages import ModelRequest, ModelResponse
+
+    async def patched_save_aggregation(
+        self: AggregationStore,
+        execution_id: str,
+        aggregated: MemberSubmissionsRecord,
+        message_history: list[ModelRequest | ModelResponse],
+    ) -> None:
+        """Patched save_aggregation with member tool usage warning.
+
+        This wrapper checks if the Leader called any member tools based on
+        MemberSubmissionsRecord before calling the original method.
+        """
+        # Check member tool usage before saving (Issue #19)
+        # LIMITATION: Cannot determine if team has members from AggregationStore context.
+        # This warning may fire for teams with no members (false positive).
+        # Future improvement: Pass team configuration or lookup member count from team_id.
+        if aggregated.total_count == 0:
+            logger.warning(
+                "Leader did not call any member tools (team_id=%s, round=%d). "
+                "Model may not support function_tools properly. "
+                "Check if the model implementation handles "
+                "model_request_parameters.function_tools.",
+                aggregated.team_id,
+                aggregated.round_number,
+            )
+
+        # Call original method
+        await original_func(self, execution_id, aggregated, message_history)
+
+    AggregationStore.save_aggregation = patched_save_aggregation  # type: ignore[method-assign]
+
+
+def reset_aggregation_store_patch() -> None:
+    """Reset AggregationStore.save_aggregation to original (for testing only)."""
+    global _ORIGINAL_SAVE_AGGREGATION
+
+    if _ORIGINAL_SAVE_AGGREGATION is not None:
+        from mixseek.storage.aggregation_store import AggregationStore
+
+        AggregationStore.save_aggregation = _ORIGINAL_SAVE_AGGREGATION  # type: ignore[method-assign, assignment]
+        _ORIGINAL_SAVE_AGGREGATION = None
