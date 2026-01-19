@@ -364,7 +364,7 @@ wheels = [
 [[package]]
 name = "claude-agent-sdk"
 version = "0.1.20"
-source = { git = "https://github.com/drillan/claude-agent-sdk-python.git?branch=fix%2Fstring-prompt-mcp-transport#b2f2540682b140a0a95705f5d2b060d2ee319aef" }
+source = { git = "https://github.com/drillan/claude-agent-sdk-python.git?branch=fix%2Fstring-prompt-mcp-transport#c1b9f8da1bba7614679b2ca95abfe8740a745ade" }
 dependencies = [
     { name = "anyio" },
     { name = "mcp" },
