@@ -11,6 +11,7 @@ Tests cover:
 - MCP-010, MCP-011: patched_run() ContextVar management
 """
 
+from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -461,16 +462,87 @@ class TestApplyLeaderToolSettings:
         assert result.get("working_directory") == "/workspace"
         assert result.get("max_turns") == 5
 
+    def test_apply_leader_tool_settings_with_preset(self, tmp_path: Path) -> None:
+        """LTS-005: apply_leader_tool_settings resolves preset when workspace provided."""
+        from mixseek_plus import core_patch
+        from mixseek_plus.core_patch import (
+            apply_leader_tool_settings,
+            get_claudecode_tool_settings,
+        )
+
+        # Clear any existing settings
+        core_patch._CLAUDECODE_TOOL_SETTINGS = None
+
+        # Create preset file
+        workspace = tmp_path
+        preset_dir = workspace / "configs" / "presets"
+        preset_dir.mkdir(parents=True)
+        preset_file = preset_dir / "claudecode.toml"
+        preset_file.write_text("""
+[delegate_only]
+permission_mode = "bypassPermissions"
+disallowed_tools = ["Bash", "Write", "Edit"]
+""")
+
+        leader_dict: dict[str, object] = {
+            "model": "claudecode:claude-haiku-4-5",
+            "tool_settings": {
+                "claudecode": {
+                    "preset": "delegate_only",
+                    "max_turns": 50,  # Local override
+                }
+            },
+        }
+        apply_leader_tool_settings(leader_dict, workspace)
+
+        result = get_claudecode_tool_settings()
+        assert result is not None
+        # Preset values
+        assert result.get("permission_mode") == "bypassPermissions"
+        assert result.get("disallowed_tools") == ["Bash", "Write", "Edit"]
+        # Local override
+        assert result.get("max_turns") == 50
+        # Preset key should be removed
+        assert "preset" not in result
+
+    def test_apply_leader_tool_settings_preset_without_workspace(self) -> None:
+        """LTS-006: apply_leader_tool_settings skips preset when workspace not provided."""
+        from mixseek_plus import core_patch
+        from mixseek_plus.core_patch import (
+            apply_leader_tool_settings,
+            get_claudecode_tool_settings,
+        )
+
+        # Clear any existing settings
+        core_patch._CLAUDECODE_TOOL_SETTINGS = None
+
+        leader_dict: dict[str, object] = {
+            "model": "claudecode:claude-haiku-4-5",
+            "tool_settings": {
+                "claudecode": {
+                    "preset": "delegate_only",
+                    "max_turns": 50,
+                }
+            },
+        }
+        # Call without workspace - preset should be skipped but other settings applied
+        apply_leader_tool_settings(leader_dict)  # No workspace
+
+        result = get_claudecode_tool_settings()
+        assert result is not None
+        # Only local setting should be present (preset ignored)
+        assert result.get("max_turns") == 50
+        # Preset key should be removed
+        assert "preset" not in result
+
 
 class TestConfigurationManagerPatch:
     """Tests for ConfigurationManager.load_team_settings() patching (LTS-010, LTS-011)."""
 
     def test_configuration_manager_patch_applies_leader_tool_settings(
-        self, tmp_path: pytest.TempPathFactory
+        self, tmp_path: Path
     ) -> None:
         """LTS-010: ConfigurationManager patch applies leader tool_settings automatically."""
-        from pathlib import Path
-
         from mixseek_plus import core_patch
         from mixseek_plus.core_patch import get_claudecode_tool_settings, patch_core
 
@@ -514,7 +586,7 @@ text = "You are a helpful assistant."
 agent_module = "mixseek_plus.agents.claudecode_agent"
 agent_class = "ClaudeCodePlainAgent"
 """
-        toml_file = Path(tmp_path) / "team.toml"  # type: ignore[arg-type]
+        toml_file = tmp_path / "team.toml"
         toml_file.write_text(toml_content)
 
         # Load team settings - should auto-apply leader.tool_settings
@@ -529,11 +601,9 @@ agent_class = "ClaudeCodePlainAgent"
         assert result.get("disallowed_tools") == ["Bash", "Write", "Edit"]
 
     def test_configuration_manager_patch_without_tool_settings(
-        self, tmp_path: pytest.TempPathFactory
+        self, tmp_path: Path
     ) -> None:
         """LTS-011: ConfigurationManager patch works without tool_settings in TOML."""
-        from pathlib import Path
-
         from mixseek_plus import core_patch
         from mixseek_plus.core_patch import get_claudecode_tool_settings, patch_core
 
@@ -574,7 +644,7 @@ text = "You are a helpful assistant."
 agent_module = "mixseek.agents.plain.agent"
 agent_class = "PlainAgent"
 """
-        toml_file = Path(tmp_path) / "team.toml"  # type: ignore[arg-type]
+        toml_file = tmp_path / "team.toml"
         toml_file.write_text(toml_content)
 
         # Load team settings - should not set tool_settings
@@ -624,6 +694,90 @@ agent_class = "PlainAgent"
         # Final cleanup - restore original
         ConfigurationManager.load_team_settings = original_func  # type: ignore[method-assign]
         core_patch._ORIGINAL_LOAD_TEAM_SETTINGS = None
+
+    def test_configuration_manager_patch_resolves_preset(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """LTS-012: ConfigurationManager patch resolves preset from workspace."""
+        from mixseek_plus import core_patch
+        from mixseek_plus.core_patch import get_claudecode_tool_settings, patch_core
+
+        # Reset patch state
+        core_patch._PATCH_APPLIED = False
+        core_patch._CLAUDECODE_TOOL_SETTINGS = None
+        core_patch._ORIGINAL_LOAD_TEAM_SETTINGS = None
+
+        # Apply patch
+        patch_core()
+
+        # Create workspace structure with preset file
+        workspace = tmp_path
+        configs_dir = workspace / "configs"
+        presets_dir = configs_dir / "presets"
+        presets_dir.mkdir(parents=True)
+
+        # Create preset file
+        preset_file = presets_dir / "claudecode.toml"
+        preset_file.write_text("""
+[delegate_only]
+permission_mode = "bypassPermissions"
+disallowed_tools = ["Bash", "Write", "Edit"]
+""")
+
+        # Set MIXSEEK_WORKSPACE environment variable for get_workspace_for_config()
+        monkeypatch.setenv("MIXSEEK_WORKSPACE", str(workspace))
+
+        # Create TOML file that references the preset
+        toml_content = """
+[team]
+team_id = "test-team"
+team_name = "Test Team"
+max_concurrent_members = 1
+
+[team.leader]
+system_instruction = "You are a leader"
+model = "claudecode:claude-haiku-4-5"
+temperature = 0.7
+
+[team.leader.tool_settings]
+claudecode = { preset = "delegate_only", max_turns = 100 }
+
+[[team.members]]
+name = "assistant"
+type = "custom"
+tool_name = "ask_assistant"
+tool_description = "Ask assistant for help."
+model = "claudecode:claude-haiku-4-5"
+temperature = 0.3
+max_tokens = 4096
+timeout_seconds = 120
+
+[team.members.system_instruction]
+text = "You are a helpful assistant."
+
+[team.members.plugin]
+agent_module = "mixseek_plus.agents.claudecode_agent"
+agent_class = "ClaudeCodePlainAgent"
+"""
+        toml_file = configs_dir / "team.toml"
+        toml_file.write_text(toml_content)
+
+        # Load team settings - should auto-resolve preset
+        from mixseek.config.manager import ConfigurationManager
+
+        manager = ConfigurationManager()
+        manager.load_team_settings(toml_file)
+
+        # Verify preset was resolved and merged
+        result = get_claudecode_tool_settings()
+        assert result is not None
+        # From preset
+        assert result.get("permission_mode") == "bypassPermissions"
+        assert result.get("disallowed_tools") == ["Bash", "Write", "Edit"]
+        # Local override
+        assert result.get("max_turns") == 100
+        # Preset key should be removed
+        assert "preset" not in result
 
 
 class TestLeaderAgentPatch:

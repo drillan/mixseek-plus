@@ -3,6 +3,7 @@
 CC-030, CC-031, CC-032, CC-034の検証
 """
 
+import pytest
 from mixseek.models.member_agent import MemberAgentConfig
 
 
@@ -109,9 +110,34 @@ class TestClaudeCodeToolSettings:
     and passed to create_claudecode_model().
     """
 
-    def test_extract_claudecode_tool_settings_allowed_tools(self) -> None:
-        """CC-040: _extract_claudecode_tool_settings extracts allowed_tools."""
+    def _create_mock_agent(self) -> object:
+        """Create a mock agent instance for testing _extract_claudecode_tool_settings."""
+        from unittest.mock import MagicMock, patch
+
         from mixseek_plus.agents.base_claudecode_agent import BaseClaudeCodeAgent
+
+        class ConcreteAgent(BaseClaudeCodeAgent):
+            def _get_agent(self):  # type: ignore[no-untyped-def]
+                return MagicMock()
+
+            def _create_deps(self):  # type: ignore[no-untyped-def]
+                return MagicMock()
+
+            def _get_agent_type_metadata(self) -> dict[str, str]:
+                return {}
+
+        with patch.object(ConcreteAgent, "__init__", lambda self, config: None):
+            agent = ConcreteAgent.__new__(ConcreteAgent)
+            return agent
+
+    def test_extract_claudecode_tool_settings_allowed_tools(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """CC-040: _extract_claudecode_tool_settings extracts allowed_tools."""
+        from mixseek_plus.agents.base_claudecode_agent import WORKSPACE_ENV_VAR
+
+        # Ensure no workspace is set so preset resolution is skipped
+        monkeypatch.delenv(WORKSPACE_ENV_VAR, raising=False)
 
         config = MemberAgentConfig(
             name="tool-agent",
@@ -125,18 +151,18 @@ class TestClaudeCodeToolSettings:
             },
         )
 
-        # Test the extraction method directly (it's a static method functionally)
-        # Create a minimal mock to test the method
-        result = BaseClaudeCodeAgent._extract_claudecode_tool_settings(
-            None,  # type: ignore[arg-type]
-            config,
-        )
+        agent = self._create_mock_agent()
+        result = agent._extract_claudecode_tool_settings(config)
         assert result is not None
         assert result.get("allowed_tools") == ["Read", "Glob", "Grep"]
 
-    def test_extract_claudecode_tool_settings_disallowed_tools(self) -> None:
+    def test_extract_claudecode_tool_settings_disallowed_tools(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """CC-041: _extract_claudecode_tool_settings extracts disallowed_tools."""
-        from mixseek_plus.agents.base_claudecode_agent import BaseClaudeCodeAgent
+        from mixseek_plus.agents.base_claudecode_agent import WORKSPACE_ENV_VAR
+
+        monkeypatch.delenv(WORKSPACE_ENV_VAR, raising=False)
 
         config = MemberAgentConfig(
             name="tool-agent",
@@ -150,16 +176,18 @@ class TestClaudeCodeToolSettings:
             },
         )
 
-        result = BaseClaudeCodeAgent._extract_claudecode_tool_settings(
-            None,  # type: ignore[arg-type]
-            config,
-        )
+        agent = self._create_mock_agent()
+        result = agent._extract_claudecode_tool_settings(config)
         assert result is not None
         assert result.get("disallowed_tools") == ["Write", "Edit"]
 
-    def test_extract_claudecode_tool_settings_permission_mode(self) -> None:
+    def test_extract_claudecode_tool_settings_permission_mode(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """CC-042: _extract_claudecode_tool_settings extracts permission_mode."""
-        from mixseek_plus.agents.base_claudecode_agent import BaseClaudeCodeAgent
+        from mixseek_plus.agents.base_claudecode_agent import WORKSPACE_ENV_VAR
+
+        monkeypatch.delenv(WORKSPACE_ENV_VAR, raising=False)
 
         config = MemberAgentConfig(
             name="tool-agent",
@@ -173,16 +201,18 @@ class TestClaudeCodeToolSettings:
             },
         )
 
-        result = BaseClaudeCodeAgent._extract_claudecode_tool_settings(
-            None,  # type: ignore[arg-type]
-            config,
-        )
+        agent = self._create_mock_agent()
+        result = agent._extract_claudecode_tool_settings(config)
         assert result is not None
         assert result.get("permission_mode") == "bypassPermissions"
 
-    def test_extract_claudecode_tool_settings_working_directory(self) -> None:
+    def test_extract_claudecode_tool_settings_working_directory(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """CC-043: _extract_claudecode_tool_settings extracts working_directory."""
-        from mixseek_plus.agents.base_claudecode_agent import BaseClaudeCodeAgent
+        from mixseek_plus.agents.base_claudecode_agent import WORKSPACE_ENV_VAR
+
+        monkeypatch.delenv(WORKSPACE_ENV_VAR, raising=False)
 
         config = MemberAgentConfig(
             name="tool-agent",
@@ -196,16 +226,18 @@ class TestClaudeCodeToolSettings:
             },
         )
 
-        result = BaseClaudeCodeAgent._extract_claudecode_tool_settings(
-            None,  # type: ignore[arg-type]
-            config,
-        )
+        agent = self._create_mock_agent()
+        result = agent._extract_claudecode_tool_settings(config)
         assert result is not None
         assert result.get("working_directory") == "/tmp/workdir"
 
-    def test_extract_claudecode_tool_settings_max_turns(self) -> None:
+    def test_extract_claudecode_tool_settings_max_turns(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """_extract_claudecode_tool_settings extracts max_turns."""
-        from mixseek_plus.agents.base_claudecode_agent import BaseClaudeCodeAgent
+        from mixseek_plus.agents.base_claudecode_agent import WORKSPACE_ENV_VAR
+
+        monkeypatch.delenv(WORKSPACE_ENV_VAR, raising=False)
 
         config = MemberAgentConfig(
             name="tool-agent",
@@ -219,16 +251,18 @@ class TestClaudeCodeToolSettings:
             },
         )
 
-        result = BaseClaudeCodeAgent._extract_claudecode_tool_settings(
-            None,  # type: ignore[arg-type]
-            config,
-        )
+        agent = self._create_mock_agent()
+        result = agent._extract_claudecode_tool_settings(config)
         assert result is not None
         assert result.get("max_turns") == 5
 
-    def test_extract_claudecode_tool_settings_all_combined(self) -> None:
+    def test_extract_claudecode_tool_settings_all_combined(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """All tool_settings.claudecode options work together."""
-        from mixseek_plus.agents.base_claudecode_agent import BaseClaudeCodeAgent
+        from mixseek_plus.agents.base_claudecode_agent import WORKSPACE_ENV_VAR
+
+        monkeypatch.delenv(WORKSPACE_ENV_VAR, raising=False)
 
         config = MemberAgentConfig(
             name="tool-agent",
@@ -246,10 +280,8 @@ class TestClaudeCodeToolSettings:
             },
         )
 
-        result = BaseClaudeCodeAgent._extract_claudecode_tool_settings(
-            None,  # type: ignore[arg-type]
-            config,
-        )
+        agent = self._create_mock_agent()
+        result = agent._extract_claudecode_tool_settings(config)
         assert result is not None
         assert result.get("allowed_tools") == ["Read", "Glob"]
         assert result.get("disallowed_tools") == ["Write"]
