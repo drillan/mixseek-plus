@@ -88,8 +88,21 @@ class FixedTokenClaudeCodeModel(ClaudeCodeModel):
 
 
 class ClaudeCodeToolSettings(TypedDict, total=False):
-    """ClaudeCode-specific tool settings from TOML config."""
+    """ClaudeCode-specific tool settings from TOML config.
 
+    Attributes:
+        preset: Name of a preset defined in configs/presets/claudecode.toml.
+                When specified, the preset's settings are loaded and merged
+                with any additional settings provided here (local settings
+                take precedence).
+        allowed_tools: List of tools that are allowed to be used.
+        disallowed_tools: List of tools that are disallowed.
+        permission_mode: Permission mode (e.g., "bypassPermissions").
+        working_directory: Working directory path.
+        max_turns: Maximum number of turns.
+    """
+
+    preset: str
     allowed_tools: list[str]
     disallowed_tools: list[str]
     permission_mode: str

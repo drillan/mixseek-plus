@@ -4,9 +4,14 @@ This module provides a common base class for ClaudeCode-based agents,
 following the same pattern as BaseGroqAgent.
 """
 
+from __future__ import annotations
+
+import logging
+import os
 import time
 from abc import abstractmethod
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, cast
 
 from claudecode_model import CLIExecutionError, CLINotFoundError, CLIResponseParseError
@@ -22,6 +27,11 @@ from mixseek_plus.providers.claudecode import (
     create_claudecode_model,
 )
 from mixseek_plus.types import AgentMetadata, UsageInfo
+
+logger = logging.getLogger(__name__)
+
+# Environment variable for workspace path (used by Member agents)
+WORKSPACE_ENV_VAR = "MIXSEEK_WORKSPACE"
 
 
 @dataclass
@@ -79,6 +89,10 @@ class BaseClaudeCodeAgent(BaseMemberAgent):
     ) -> ClaudeCodeToolSettings | None:
         """Extract ClaudeCode-specific settings from config.tool_settings.
 
+        If the settings contain a 'preset' key and the MIXSEEK_WORKSPACE
+        environment variable is set, the preset is resolved from
+        configs/presets/claudecode.toml and merged with any local settings.
+
         Args:
             config: Agent configuration
 
@@ -94,7 +108,72 @@ class BaseClaudeCodeAgent(BaseMemberAgent):
             return None
 
         # Cast to ClaudeCodeToolSettings
-        return cast(ClaudeCodeToolSettings, claudecode_settings)
+        settings = cast(ClaudeCodeToolSettings, claudecode_settings)
+
+        # Resolve preset if specified
+        return self._resolve_preset_if_needed(settings)
+
+    def _resolve_preset_if_needed(
+        self, settings: ClaudeCodeToolSettings
+    ) -> ClaudeCodeToolSettings:
+        """Resolve preset settings if specified and workspace is available.
+
+        Args:
+            settings: ClaudeCode tool settings that may contain a 'preset' key.
+
+        Returns:
+            Resolved and merged settings, or original settings if no preset
+            or workspace is not available.
+        """
+        preset_name = settings.get("preset")
+        if preset_name is None:
+            return settings
+
+        workspace = self._get_workspace()
+        if workspace is None:
+            logger.warning(
+                "プリセット '%s' が指定されていますが、%s 環境変数が設定されていないため"
+                "プリセット解決をスキップします。preset キーは無視されます。",
+                preset_name,
+                WORKSPACE_ENV_VAR,
+            )
+            # Remove preset key and return other settings
+            return {k: v for k, v in settings.items() if k != "preset"}  # type: ignore[return-value]
+
+        # Import here to avoid circular imports
+        from mixseek_plus.presets import resolve_and_merge_preset
+
+        logger.debug(
+            "プリセット '%s' を %s から解決しています (エージェント: %s)...",
+            preset_name,
+            workspace,
+            self.agent_name,
+        )
+        return resolve_and_merge_preset(settings, workspace)
+
+    def _get_workspace(self) -> Path | None:
+        """Get workspace directory from environment variable.
+
+        Member agents determine the workspace from the MIXSEEK_WORKSPACE
+        environment variable, which should be set by the orchestrator.
+
+        Returns:
+            Workspace directory path, or None if not set.
+        """
+        workspace_str = os.environ.get(WORKSPACE_ENV_VAR)
+        if workspace_str is None:
+            return None
+
+        workspace = Path(workspace_str)
+        if not workspace.exists():
+            logger.warning(
+                "%s 環境変数で指定されたディレクトリが存在しません: %s",
+                WORKSPACE_ENV_VAR,
+                workspace,
+            )
+            return None
+
+        return workspace
 
     def _extract_api_error_details(self, error: Exception) -> tuple[str, str]:
         """Extract detailed error message and code from ClaudeCode API errors.

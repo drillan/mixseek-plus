@@ -461,6 +461,83 @@ class TestApplyLeaderToolSettings:
         assert result.get("working_directory") == "/workspace"
         assert result.get("max_turns") == 5
 
+    def test_apply_leader_tool_settings_with_preset(
+        self, tmp_path: pytest.TempPathFactory
+    ) -> None:
+        """LTS-005: apply_leader_tool_settings resolves preset when workspace provided."""
+        from pathlib import Path
+
+        from mixseek_plus import core_patch
+        from mixseek_plus.core_patch import (
+            apply_leader_tool_settings,
+            get_claudecode_tool_settings,
+        )
+
+        # Clear any existing settings
+        core_patch._CLAUDECODE_TOOL_SETTINGS = None
+
+        # Create preset file
+        workspace = Path(tmp_path)  # type: ignore[arg-type]
+        preset_dir = workspace / "configs" / "presets"
+        preset_dir.mkdir(parents=True)
+        preset_file = preset_dir / "claudecode.toml"
+        preset_file.write_text("""
+[delegate_only]
+permission_mode = "bypassPermissions"
+disallowed_tools = ["Bash", "Write", "Edit"]
+""")
+
+        leader_dict: dict[str, object] = {
+            "model": "claudecode:claude-haiku-4-5",
+            "tool_settings": {
+                "claudecode": {
+                    "preset": "delegate_only",
+                    "max_turns": 50,  # Local override
+                }
+            },
+        }
+        apply_leader_tool_settings(leader_dict, workspace)
+
+        result = get_claudecode_tool_settings()
+        assert result is not None
+        # Preset values
+        assert result.get("permission_mode") == "bypassPermissions"
+        assert result.get("disallowed_tools") == ["Bash", "Write", "Edit"]
+        # Local override
+        assert result.get("max_turns") == 50
+        # Preset key should be removed
+        assert "preset" not in result
+
+    def test_apply_leader_tool_settings_preset_without_workspace(self) -> None:
+        """LTS-006: apply_leader_tool_settings skips preset when workspace not provided."""
+        from mixseek_plus import core_patch
+        from mixseek_plus.core_patch import (
+            apply_leader_tool_settings,
+            get_claudecode_tool_settings,
+        )
+
+        # Clear any existing settings
+        core_patch._CLAUDECODE_TOOL_SETTINGS = None
+
+        leader_dict: dict[str, object] = {
+            "model": "claudecode:claude-haiku-4-5",
+            "tool_settings": {
+                "claudecode": {
+                    "preset": "delegate_only",
+                    "max_turns": 50,
+                }
+            },
+        }
+        # Call without workspace - preset should be skipped but other settings applied
+        apply_leader_tool_settings(leader_dict)  # No workspace
+
+        result = get_claudecode_tool_settings()
+        assert result is not None
+        # Only local setting should be present (preset ignored)
+        assert result.get("max_turns") == 50
+        # Preset key should be removed
+        assert "preset" not in result
+
 
 class TestConfigurationManagerPatch:
     """Tests for ConfigurationManager.load_team_settings() patching (LTS-010, LTS-011)."""
@@ -624,6 +701,174 @@ agent_class = "PlainAgent"
         # Final cleanup - restore original
         ConfigurationManager.load_team_settings = original_func  # type: ignore[method-assign]
         core_patch._ORIGINAL_LOAD_TEAM_SETTINGS = None
+
+    def test_configuration_manager_patch_resolves_preset(
+        self, tmp_path: pytest.TempPathFactory
+    ) -> None:
+        """LTS-012: ConfigurationManager patch resolves preset from workspace."""
+        from pathlib import Path
+
+        from mixseek_plus import core_patch
+        from mixseek_plus.core_patch import get_claudecode_tool_settings, patch_core
+
+        # Reset patch state
+        core_patch._PATCH_APPLIED = False
+        core_patch._CLAUDECODE_TOOL_SETTINGS = None
+        core_patch._ORIGINAL_LOAD_TEAM_SETTINGS = None
+
+        # Apply patch
+        patch_core()
+
+        # Create workspace structure with preset file
+        workspace = Path(tmp_path)  # type: ignore[arg-type]
+        configs_dir = workspace / "configs"
+        presets_dir = configs_dir / "presets"
+        presets_dir.mkdir(parents=True)
+
+        # Create preset file
+        preset_file = presets_dir / "claudecode.toml"
+        preset_file.write_text("""
+[delegate_only]
+permission_mode = "bypassPermissions"
+disallowed_tools = ["Bash", "Write", "Edit"]
+""")
+
+        # Create TOML file that references the preset
+        toml_content = """
+[team]
+team_id = "test-team"
+team_name = "Test Team"
+max_concurrent_members = 1
+
+[team.leader]
+system_instruction = "You are a leader"
+model = "claudecode:claude-haiku-4-5"
+temperature = 0.7
+
+[team.leader.tool_settings]
+claudecode = { preset = "delegate_only", max_turns = 100 }
+
+[[team.members]]
+name = "assistant"
+type = "custom"
+tool_name = "ask_assistant"
+tool_description = "Ask assistant for help."
+model = "claudecode:claude-haiku-4-5"
+temperature = 0.3
+max_tokens = 4096
+timeout_seconds = 120
+
+[team.members.system_instruction]
+text = "You are a helpful assistant."
+
+[team.members.plugin]
+agent_module = "mixseek_plus.agents.claudecode_agent"
+agent_class = "ClaudeCodePlainAgent"
+"""
+        toml_file = configs_dir / "team.toml"
+        toml_file.write_text(toml_content)
+
+        # Load team settings - should auto-resolve preset
+        from mixseek.config.manager import ConfigurationManager
+
+        manager = ConfigurationManager()
+        manager.load_team_settings(toml_file)
+
+        # Verify preset was resolved and merged
+        result = get_claudecode_tool_settings()
+        assert result is not None
+        # From preset
+        assert result.get("permission_mode") == "bypassPermissions"
+        assert result.get("disallowed_tools") == ["Bash", "Write", "Edit"]
+        # Local override
+        assert result.get("max_turns") == 100
+        # Preset key should be removed
+        assert "preset" not in result
+
+
+class TestGetWorkspaceFromConfigManager:
+    """Tests for _get_workspace_from_config_manager() function."""
+
+    def test_get_workspace_from_config_manager_attribute(self) -> None:
+        """Should use workspace attribute if available."""
+        from pathlib import Path
+        from unittest.mock import MagicMock
+
+        from mixseek_plus.core_patch import _get_workspace_from_config_manager
+
+        mock_manager = MagicMock()
+        mock_manager.workspace = Path("/my/workspace")
+
+        result = _get_workspace_from_config_manager(
+            mock_manager, Path("/some/toml/file.toml")
+        )
+
+        assert result == Path("/my/workspace")
+
+    def test_get_workspace_from_toml_path_configs_dir(
+        self, tmp_path: pytest.TempPathFactory
+    ) -> None:
+        """Should derive workspace from toml_file path when in configs directory."""
+        from pathlib import Path
+        from unittest.mock import MagicMock
+
+        from mixseek_plus.core_patch import _get_workspace_from_config_manager
+
+        mock_manager = MagicMock()
+        mock_manager.workspace = None
+
+        workspace = Path(tmp_path)  # type: ignore[arg-type]
+        configs_dir = workspace / "configs"
+        configs_dir.mkdir(parents=True)
+        toml_file = configs_dir / "team.toml"
+        toml_file.touch()
+
+        result = _get_workspace_from_config_manager(mock_manager, toml_file)
+
+        assert result == workspace
+
+    def test_get_workspace_from_toml_path_nested_configs(
+        self, tmp_path: pytest.TempPathFactory
+    ) -> None:
+        """Should derive workspace from nested configs subdirectory."""
+        from pathlib import Path
+        from unittest.mock import MagicMock
+
+        from mixseek_plus.core_patch import _get_workspace_from_config_manager
+
+        mock_manager = MagicMock()
+        mock_manager.workspace = None
+
+        workspace = Path(tmp_path)  # type: ignore[arg-type]
+        configs_dir = workspace / "configs" / "agents"
+        configs_dir.mkdir(parents=True)
+        toml_file = configs_dir / "team.toml"
+        toml_file.touch()
+
+        result = _get_workspace_from_config_manager(mock_manager, toml_file)
+
+        assert result == workspace
+
+    def test_get_workspace_returns_none_when_not_in_configs(
+        self, tmp_path: pytest.TempPathFactory
+    ) -> None:
+        """Should return None when toml_file is not under configs directory."""
+        from pathlib import Path
+        from unittest.mock import MagicMock
+
+        from mixseek_plus.core_patch import _get_workspace_from_config_manager
+
+        mock_manager = MagicMock()
+        mock_manager.workspace = None
+
+        # Create toml file not in configs directory
+        workspace = Path(tmp_path)  # type: ignore[arg-type]
+        toml_file = workspace / "team.toml"
+        toml_file.touch()
+
+        result = _get_workspace_from_config_manager(mock_manager, toml_file)
+
+        assert result is None
 
 
 class TestLeaderAgentPatch:

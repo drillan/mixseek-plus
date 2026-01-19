@@ -130,6 +130,7 @@ allowed_tools = ["Read", "Glob", "Grep"]
 
 | オプション | 型 | 説明 |
 |------------|-----|------|
+| `preset` | `str` | プリセット名（`configs/presets/claudecode.toml`から読み込み） |
 | `allowed_tools` | `list[str]` | 許可するツールのリスト |
 | `disallowed_tools` | `list[str]` | 禁止するツールのリスト |
 | `permission_mode` | `str` | パーミッションモード（`"bypassPermissions"` で確認スキップ） |
@@ -151,6 +152,55 @@ disallowed_tools = ["Write", "Edit", "Bash"]
 [members.tool_settings.claudecode]
 permission_mode = "bypassPermissions"
 ```
+
+#### プリセットによる設定
+
+よく使う設定をプリセットとして定義し、再利用することができます。プリセットは `configs/presets/claudecode.toml` に定義します。
+
+**プリセットファイルの作成:**
+
+```toml
+# configs/presets/claudecode.toml
+
+[delegate_only]
+# 委譲専用：直接ツールアクセスを禁止
+permission_mode = "bypassPermissions"
+disallowed_tools = ["Bash", "Write", "Edit", "Read", "Glob", "Grep", "WebFetch", "WebSearch", "NotebookEdit", "Task"]
+
+[full_access]
+# フルアクセス：全ツール利用可能
+permission_mode = "bypassPermissions"
+
+[read_only]
+# 読み取り専用：書き込み・編集を禁止
+permission_mode = "bypassPermissions"
+disallowed_tools = ["Write", "Edit", "NotebookEdit"]
+```
+
+**プリセットの使用:**
+
+```toml
+[[members]]
+name = "delegator"
+type = "claudecode_plain"
+model = "claudecode:claude-sonnet-4-5"
+system_instruction = "タスクを適切なメンバーに委譲します。"
+
+[members.tool_settings.claudecode]
+preset = "delegate_only"
+```
+
+**プリセット + ローカル設定のマージ:**
+
+プリセットの設定をベースに、ローカル設定で上書きすることも可能です。
+
+```toml
+[members.tool_settings.claudecode]
+preset = "read_only"
+max_turns = 50  # プリセットの設定 + 追加設定
+```
+
+この場合、`read_only`プリセットの設定に加えて、`max_turns = 50`が追加されます。ローカル設定はプリセットの値を上書きします。
 
 ### 共通の設定オプション
 
@@ -221,11 +271,24 @@ mixseek_plus.patch_core()
 
 | オプション | 型 | 説明 |
 |------------|-----|------|
+| `preset` | `str` | プリセット名（`configs/presets/claudecode.toml`から読み込み） |
 | `permission_mode` | `str` | パーミッションモード（`"bypassPermissions"` で確認スキップ） |
 | `working_directory` | `str` | 作業ディレクトリ |
 | `allowed_tools` | `list[str]` | 許可するツールのリスト |
 | `disallowed_tools` | `list[str]` | 禁止するツールのリスト |
 | `max_turns` | `int` | 最大ターン数 |
+
+**プリセットの使用:**
+
+TOML設定でLeader/Evaluatorにプリセットを適用することもできます。
+
+```toml
+[leader]
+model = "claudecode:claude-sonnet-4-5"
+
+[leader.tool_settings.claudecode]
+preset = "full_access"
+```
 
 **設定のクリア:**
 

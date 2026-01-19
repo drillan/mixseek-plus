@@ -19,6 +19,13 @@ from mixseek_plus.core_patch import (
 )
 from mixseek_plus.errors import ClaudeCodeNotPatchedError, ModelCreationError
 from mixseek_plus.model_factory import create_model
+from mixseek_plus.presets import (
+    PRESET_FILE_PATH,
+    PresetFileNotFoundError,
+    PresetNotFoundError,
+    resolve_and_merge_preset,
+    resolve_claudecode_preset,
+)
 from mixseek_plus.providers.claudecode import create_claudecode_model
 
 __all__ = [
@@ -39,4 +46,10 @@ __all__ = [
     "reset_configuration_manager_patch",
     "GroqNotPatchedError",
     "check_groq_support",
+    # Presets
+    "PRESET_FILE_PATH",
+    "PresetFileNotFoundError",
+    "PresetNotFoundError",
+    "resolve_claudecode_preset",
+    "resolve_and_merge_preset",
 ]

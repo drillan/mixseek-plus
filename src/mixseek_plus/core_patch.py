@@ -221,14 +221,23 @@ def clear_claudecode_tool_settings() -> None:
     _CLAUDECODE_TOOL_SETTINGS = None
 
 
-def apply_leader_tool_settings(leader_dict: dict[str, object]) -> None:
+def apply_leader_tool_settings(
+    leader_dict: dict[str, object],
+    workspace: Path | None = None,
+) -> None:
     """Apply leader tool_settings from TOML configuration.
 
     Extracts tool_settings.claudecode from leader dict and
     calls configure_claudecode_tool_settings() automatically.
 
+    If the settings contain a 'preset' key and workspace is provided,
+    the preset is resolved from configs/presets/claudecode.toml and
+    merged with any local settings before being applied.
+
     Args:
         leader_dict: TeamSettings.leader dict from TOML
+        workspace: Optional workspace directory for preset resolution.
+                  If not provided, preset resolution is skipped.
     """
     tool_settings = leader_dict.get("tool_settings")
     if not tool_settings:
@@ -245,7 +254,12 @@ def apply_leader_tool_settings(leader_dict: dict[str, object]) -> None:
     claudecode_settings = tool_settings.get("claudecode")
     if claudecode_settings:
         if isinstance(claudecode_settings, dict):
-            configure_claudecode_tool_settings(claudecode_settings)  # type: ignore[arg-type]
+            # Resolve preset if specified and workspace is available
+            resolved_settings = _resolve_preset_settings(
+                claudecode_settings,  # type: ignore[arg-type]
+                workspace,
+            )
+            configure_claudecode_tool_settings(resolved_settings)
             logger.debug("leader.tool_settings.claudecode を適用しました。")
         else:
             logger.debug(
@@ -256,6 +270,46 @@ def apply_leader_tool_settings(leader_dict: dict[str, object]) -> None:
         logger.debug(
             "leader.tool_settings.claudecode が設定されていません。スキップします。"
         )
+
+
+def _resolve_preset_settings(
+    settings: ClaudeCodeToolSettings,
+    workspace: Path | None,
+) -> ClaudeCodeToolSettings:
+    """Resolve preset settings if specified and workspace is available.
+
+    Args:
+        settings: ClaudeCode tool settings that may contain a 'preset' key.
+        workspace: Workspace directory for preset resolution, or None.
+
+    Returns:
+        Resolved and merged settings, or original settings if no preset
+        or workspace is not available.
+    """
+    preset_name = settings.get("preset")
+
+    if preset_name is None:
+        # No preset specified, return original settings
+        return settings
+
+    if workspace is None:
+        logger.warning(
+            "プリセット '%s' が指定されていますが、workspace が不明なため"
+            "プリセット解決をスキップします。preset キーは無視されます。",
+            preset_name,
+        )
+        # Remove preset key and return other settings
+        return {k: v for k, v in settings.items() if k != "preset"}  # type: ignore[return-value]
+
+    # Import here to avoid circular imports
+    from mixseek_plus.presets import resolve_and_merge_preset
+
+    logger.debug(
+        "プリセット '%s' を %s から解決しています...",
+        preset_name,
+        workspace,
+    )
+    return resolve_and_merge_preset(settings, workspace)
 
 
 def _patch_configuration_manager() -> None:
@@ -290,11 +344,14 @@ def _patch_configuration_manager() -> None:
     ) -> TeamSettings:
         team_settings = original_func(self, toml_file, **extra_kwargs)
 
+        # Determine workspace from ConfigurationManager or derive from toml_file
+        workspace = _get_workspace_from_config_manager(self, toml_file)
+
         # Auto-apply leader.tool_settings.claudecode with defensive programming
         leader = getattr(team_settings, "leader", None)
         if leader is not None:
             try:
-                apply_leader_tool_settings(leader)
+                apply_leader_tool_settings(leader, workspace)
             except Exception as e:
                 logger.warning("leader.tool_settings の自動適用に失敗しました: %s", e)
         else:
@@ -305,6 +362,56 @@ def _patch_configuration_manager() -> None:
         return team_settings
 
     ConfigurationManager.load_team_settings = patched_load_team_settings  # type: ignore[method-assign]
+
+
+def _get_workspace_from_config_manager(
+    config_manager: object,
+    toml_file: Path,
+) -> Path | None:
+    """Get workspace directory from ConfigurationManager or derive from toml_file.
+
+    Tries multiple strategies to determine the workspace:
+    1. Use ConfigurationManager.workspace if set
+    2. Derive from toml_file path (parent of 'configs' directory)
+
+    Args:
+        config_manager: ConfigurationManager instance
+        toml_file: Path to the TOML configuration file
+
+    Returns:
+        Workspace directory path, or None if cannot be determined.
+    """
+    # Strategy 1: Use workspace attribute if available
+    workspace = getattr(config_manager, "workspace", None)
+    if workspace is not None:
+        logger.debug(
+            "ConfigurationManager.workspace から workspace を取得: %s", workspace
+        )
+        return Path(workspace) if not isinstance(workspace, Path) else workspace
+
+    # Strategy 2: Derive from toml_file path
+    # Typical structure: {workspace}/configs/{config}.toml
+    # or {workspace}/configs/{subdir}/{config}.toml
+    toml_file = toml_file.resolve()
+    current = toml_file.parent
+
+    # Walk up the directory tree looking for 'configs' directory
+    while current != current.parent:  # Stop at root
+        if current.name == "configs":
+            workspace = current.parent
+            logger.debug(
+                "toml_file パスから workspace を導出: %s (from %s)",
+                workspace,
+                toml_file,
+            )
+            return workspace
+        current = current.parent
+
+    logger.debug(
+        "workspace を特定できませんでした。toml_file: %s",
+        toml_file,
+    )
+    return None
 
 
 def reset_configuration_manager_patch() -> None:
