@@ -265,6 +265,36 @@ def __init__(self, config: MemberAgentConfig) -> None
 
 - `ValueError`: 認証に失敗した場合（APIキー未設定など）
 
+**使用例（Python）**
+
+```python
+# 必要な環境変数:
+# - GROQ_API_KEY: Groq APIキー
+# - TAVILY_API_KEY: Tavily APIキー（Web検索用）
+
+import asyncio
+from mixseek.models.member_agent import MemberAgentConfig
+from mixseek_plus.agents.groq_web_search_agent import GroqWebSearchAgent
+
+config = MemberAgentConfig(
+    name="web-searcher",
+    type="custom",
+    model="groq:llama-3.3-70b-versatile",
+    system_instruction="You are a web search expert.",
+    temperature=0.2,
+    max_tokens=8192,
+    timeout_seconds=150,
+)
+
+agent = GroqWebSearchAgent(config)
+
+async def main():
+    result = await agent.execute("最新のPythonニュース")
+    print(result.content)
+
+asyncio.run(main())
+```
+
 ### ClaudeCodePlainAgent
 
 ```python
