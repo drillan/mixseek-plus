@@ -12,6 +12,8 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Callable, Coroutine, Mapping
+from contextvars import ContextVar
+from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -27,6 +29,30 @@ if TYPE_CHECKING:
     from mixseek.config.schema import TeamSettings
 
 logger = logging.getLogger(__name__)
+
+# ContextVar for TeamDependencies - used to pass deps to MCP tool calls
+# This allows tool functions that require RunContext[TeamDependencies] to
+# access the current deps when called via MCP (which bypasses pydantic-ai's
+# normal context injection).
+_current_deps: ContextVar[TeamDependencies | None] = ContextVar(
+    "_current_deps", default=None
+)
+
+
+@dataclass
+class _MockRunContext:
+    """Mock RunContext for MCP tool calls.
+
+    When tools are called via MCP, pydantic-ai's RunContext is not available.
+    This mock provides the minimal interface needed by tool functions that
+    access ctx.deps.
+
+    Attributes:
+        deps: The TeamDependencies instance for the current execution.
+    """
+
+    deps: TeamDependencies
+
 
 # Module-level state to track if patch has been applied
 _PATCH_APPLIED = False
@@ -470,6 +496,109 @@ def reset_aggregation_store_patch() -> None:
         _ORIGINAL_SAVE_AGGREGATION = None
 
 
+def _wrap_tool_function_for_mcp(
+    original_func: Callable[..., Coroutine[Any, Any, str]],
+    tool_name: str,
+) -> Callable[..., Coroutine[Any, Any, str]]:
+    """Wrap a pydantic-ai tool function to inject context from contextvar.
+
+    Pydantic-ai tool functions expect a RunContext as the first argument,
+    which is normally injected by the framework. When tools are called via
+    MCP (bypassing pydantic-ai), we need to inject a mock context.
+
+    This wrapper:
+    1. Gets the current TeamDependencies from the contextvar
+    2. Creates a _MockRunContext with those deps
+    3. Injects it as the first argument to the original function
+
+    Args:
+        original_func: The original tool function that expects ctx as first arg.
+        tool_name: Name of the tool (for logging).
+
+    Returns:
+        A wrapped function that injects the context automatically.
+    """
+
+    async def wrapped(**kwargs: Any) -> str:
+        deps = _current_deps.get()
+        if deps is None:
+            raise RuntimeError(
+                f"Tool '{tool_name}' called without context. "
+                "Ensure leader_agent.run() is wrapped to set _current_deps."
+            )
+
+        mock_ctx = _MockRunContext(deps=deps)
+        logger.debug(
+            "[MCP Tool] Injecting context for tool '%s': execution_id=%s",
+            tool_name,
+            deps.execution_id,
+        )
+        return await original_func(mock_ctx, **kwargs)
+
+    # Preserve function metadata (handle missing attributes gracefully)
+    # Also handle Mock objects that may be used in tests
+    try:
+        wrapped.__name__ = original_func.__name__
+    except (AttributeError, TypeError):
+        # Ensure tool_name is a string (might be a Mock in tests)
+        wrapped.__name__ = (
+            str(tool_name) if not isinstance(tool_name, str) else tool_name
+        )
+    try:
+        wrapped.__doc__ = original_func.__doc__
+    except (AttributeError, TypeError):
+        pass
+
+    return wrapped
+
+
+def _create_mcp_compatible_tool(tool: Any) -> Any:
+    """Create an MCP-compatible tool by wrapping the function.
+
+    This creates a new tool-like object with the function wrapped
+    to inject context from the contextvar.
+
+    Args:
+        tool: A pydantic-ai Tool object.
+
+    Returns:
+        A modified tool object with wrapped function.
+    """
+    from dataclasses import replace
+
+    original_function = tool.function
+    # Ensure tool_name is a string (handle Mock objects in tests)
+    tool_name = tool.name if isinstance(tool.name, str) else str(tool.name)
+    wrapped_function = _wrap_tool_function_for_mcp(original_function, tool_name)
+
+    # Create a new tool with the wrapped function
+    # pydantic_ai.tools.Tool is a dataclass, so we can use replace()
+    try:
+        new_tool = replace(tool, function=wrapped_function)
+        return new_tool
+    except TypeError:
+        # If replace doesn't work, try creating a simple wrapper object
+        logger.warning(
+            "Could not use dataclasses.replace() on tool '%s', "
+            "creating wrapper object instead.",
+            tool.name,
+        )
+
+        class ToolWrapper:
+            """Wrapper that mimics pydantic-ai Tool interface."""
+
+            def __init__(self, original_tool: Any, wrapped_func: Any) -> None:
+                self._original = original_tool
+                self.function = wrapped_func
+                self.name = original_tool.name
+                self.description = original_tool.description
+
+            def __getattr__(self, name: str) -> Any:
+                return getattr(self._original, name)
+
+        return ToolWrapper(tool, wrapped_function)
+
+
 def _patch_leader_agent() -> None:
     """Patch create_leader_agent to call set_agent_toolsets for ClaudeCodeModel.
 
@@ -478,11 +607,16 @@ def _patch_leader_agent() -> None:
     set_agent_toolsets() method. This enables ClaudeCode to properly handle
     member agent tools.
 
+    The patch also wraps tool functions to inject context from a contextvar,
+    which is necessary because MCP tool calls bypass pydantic-ai's normal
+    context injection.
+
     Background:
         - claudecode-model Issue #37 added set_agent_toolsets()
         - Pydantic AI's standard flow passes ToolDefinition (schema only)
         - set_agent_toolsets() needs Tool objects (executable functions)
         - Without this patch, Leader warns "did not call any member tools"
+        - MCP calls don't have access to pydantic-ai's RunContext
 
     Called internally by patch_core(). Stores the original function in
     _ORIGINAL_CREATE_LEADER_AGENT for potential restoration.
@@ -506,9 +640,11 @@ def _patch_leader_agent() -> None:
     ) -> Agent[TeamDependencies, str]:
         """Patched create_leader_agent with ClaudeCodeModel toolset support.
 
-        This wrapper calls the original create_leader_agent, then extracts
-        Tool objects from the leader's _function_toolset and passes them
-        to ClaudeCodeModel.set_agent_toolsets() if applicable.
+        This wrapper calls the original create_leader_agent, then:
+        1. Extracts Tool objects from the leader's _function_toolset
+        2. Wraps tool functions to inject context from contextvar
+        3. Passes wrapped tools to ClaudeCodeModel.set_agent_toolsets()
+        4. Patches leader_agent.run() to set the contextvar
         """
         leader_agent = original_func(team_config, member_agents)
 
@@ -535,14 +671,48 @@ def _patch_leader_agent() -> None:
                 return leader_agent
 
             if tools:
-                # Note: tools are pydantic_ai.tools.Tool but set_agent_toolsets expects
-                # claudecode_model specific type. Compatible at runtime.
-                model.set_agent_toolsets(tools)  # type: ignore[arg-type]
+                # Wrap tools to inject context from contextvar
+                mcp_tools = [_create_mcp_compatible_tool(t) for t in tools]
+
+                tool_names = [t.name for t in mcp_tools]
+                logger.debug(
+                    "Wrapping %d tools for MCP compatibility: %s",
+                    len(mcp_tools),
+                    tool_names,
+                )
+                model.set_agent_toolsets(mcp_tools)  # type: ignore[arg-type]
+
                 logger.debug(
                     "Applied set_agent_toolsets with %d tools for team %s",
-                    len(tools),
+                    len(mcp_tools),
                     team_config.team_id,
                 )
+
+                # Patch leader_agent.run() to set the contextvar
+                original_run = leader_agent.run
+
+                async def patched_run(
+                    *args: Any,
+                    deps: TeamDependencies | None = None,
+                    **kwargs: Any,
+                ) -> Any:
+                    """Patched run() that sets _current_deps contextvar."""
+                    if deps is not None:
+                        token = _current_deps.set(deps)
+                        logger.debug(
+                            "[Patched run] Set _current_deps: execution_id=%s",
+                            deps.execution_id,
+                        )
+                        try:
+                            return await original_run(*args, deps=deps, **kwargs)
+                        finally:
+                            _current_deps.reset(token)
+                    else:
+                        return await original_run(*args, **kwargs)
+
+                # Replace run method
+                leader_agent.run = patched_run  # type: ignore[method-assign]
+                logger.debug("Patched leader_agent.run() to set _current_deps")
             else:
                 logger.debug(
                     "No tools found in Leader's _function_toolset for team %s",
@@ -552,6 +722,54 @@ def _patch_leader_agent() -> None:
         return leader_agent
 
     leader_module.create_leader_agent = patched_create_leader_agent  # type: ignore[assignment]
+
+    # Also patch modules that have already imported create_leader_agent directly
+    # These modules hold their own reference that won't be updated by
+    # patching leader_module.create_leader_agent alone
+    _patch_leader_agent_module_references(patched_create_leader_agent)
+
+
+def _patch_leader_agent_module_references(
+    patched_func: Callable[
+        [TeamConfig, Mapping[str, Any]], Agent[TeamDependencies, str]
+    ],
+) -> None:
+    """Patch all modules that have imported create_leader_agent directly.
+
+    mixseek-core has several modules that use:
+        from mixseek.agents.leader.agent import create_leader_agent
+
+    These create local references that aren't updated when we patch the
+    leader_module. We need to explicitly update these references.
+
+    Note:
+        This function imports the target modules if they haven't been imported yet.
+        This ensures the patch is applied regardless of import order.
+
+    Args:
+        patched_func: The patched create_leader_agent function
+    """
+    import importlib
+
+    # List of modules known to import create_leader_agent directly
+    modules_to_patch = [
+        "mixseek.round_controller.controller",
+        "mixseek.cli.commands.team",
+    ]
+
+    for module_name in modules_to_patch:
+        try:
+            # Import the module if not already imported
+            module = importlib.import_module(module_name)
+            if hasattr(module, "create_leader_agent"):
+                setattr(module, "create_leader_agent", patched_func)
+                logger.debug("Patched create_leader_agent reference in %s", module_name)
+        except ImportError as e:
+            logger.debug(
+                "Could not import %s for patching: %s",
+                module_name,
+                e,
+            )
 
 
 def reset_leader_agent_patch() -> None:

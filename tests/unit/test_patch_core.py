@@ -661,7 +661,6 @@ class TestLeaderAgentPatch:
         # Create mock tools
         mock_tool1 = MagicMock(name="tool1")
         mock_tool2 = MagicMock(name="tool2")
-        mock_tools = [mock_tool1, mock_tool2]
 
         # Create mock ClaudeCodeModel - must be actual instance for isinstance check
         mock_claudecode_model = MagicMock(spec=ClaudeCodeModel)
@@ -698,9 +697,18 @@ class TestLeaderAgentPatch:
             # Call patched function
             result = patched_func(mock_team_config, {})
 
-            # Verify set_agent_toolsets was called with the tools
-            mock_claudecode_model.set_agent_toolsets.assert_called_once_with(mock_tools)
-            assert result == mock_leader_agent
+            # Verify set_agent_toolsets was called once
+            mock_claudecode_model.set_agent_toolsets.assert_called_once()
+
+            # Get the actual call arguments
+            call_args = mock_claudecode_model.set_agent_toolsets.call_args
+            actual_tools = call_args[0][0]  # First positional argument
+
+            # Verify the correct number of wrapped tools were passed
+            assert len(actual_tools) == 2
+
+            # The returned agent should be the mock_leader_agent (with patched run method)
+            assert result.model == mock_leader_agent.model
 
         # Cleanup
         reset_leader_agent_patch()
