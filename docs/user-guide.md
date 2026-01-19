@@ -40,6 +40,15 @@ model = create_model("anthropic:claude-sonnet-4-5-20250929")
 | `grok` | `grok:grok-2` | mixseek-core委譲 |
 | `grok-responses` | `grok-responses:grok-2` | mixseek-core委譲 |
 
+### Groqで使用可能なモデル
+
+| モデルID | 種類 | 備考 |
+|----------|------|------|
+| `groq:llama-3.3-70b-versatile` | Production | 推奨 |
+| `groq:llama-3.1-8b-instant` | Production | 高速・低レイテンシ |
+| `groq:meta-llama/llama-4-scout-17b-16e-instruct` | Preview | |
+| `groq:qwen/qwen3-32b` | Preview | |
+
 ## Memberエージェント
 
 mixseek-plusは、Groq Memberエージェント（2種類）とClaudeCode Memberエージェント（1種類）を提供します。
