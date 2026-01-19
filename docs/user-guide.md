@@ -49,6 +49,10 @@ model = create_model("anthropic:claude-sonnet-4-5-20250929")
 | `groq:meta-llama/llama-4-scout-17b-16e-instruct` | Preview | |
 | `groq:qwen/qwen3-32b` | Preview | |
 
+> **Note**: モデルリストは変更される可能性があります。最新情報は[Groq公式ドキュメント](https://console.groq.com/docs/models)を参照してください。
+>
+> *最終更新: 2026年1月*
+
 ## Memberエージェント
 
 mixseek-plusは、Groq Memberエージェント（2種類）とClaudeCode Memberエージェント（1種類）を提供します。

@@ -268,6 +268,10 @@ def __init__(self, config: MemberAgentConfig) -> None
 **使用例（Python）**
 
 ```python
+# 必要な環境変数:
+# - GROQ_API_KEY: Groq APIキー
+# - TAVILY_API_KEY: Tavily APIキー（Web検索用）
+
 import asyncio
 from mixseek.models.member_agent import MemberAgentConfig
 from mixseek_plus.agents.groq_web_search_agent import GroqWebSearchAgent
