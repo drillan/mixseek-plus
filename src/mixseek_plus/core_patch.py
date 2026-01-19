@@ -15,10 +15,11 @@ from collections.abc import Callable, Coroutine, Mapping
 from contextvars import ContextVar
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Protocol
 
 from pydantic_ai.agent import Agent
 from pydantic_ai.models import Model
+from pydantic_ai.tools import Tool
 
 from mixseek_plus.providers import CLAUDECODE_PROVIDER_PREFIX, GROQ_PROVIDER_PREFIX
 from mixseek_plus.providers.claudecode import ClaudeCodeToolSettings
@@ -29,6 +30,19 @@ if TYPE_CHECKING:
     from mixseek.config.schema import TeamSettings
 
 logger = logging.getLogger(__name__)
+
+
+class _ToolLike(Protocol):
+    """Protocol for objects that behave like pydantic-ai Tool.
+
+    This protocol defines the minimal interface needed for MCP tool handling.
+    Both pydantic_ai.tools.Tool and our ToolWrapper class implement this interface.
+    """
+
+    name: str
+    description: str | None
+    function: Callable[..., Coroutine[object, object, str]]
+
 
 # ContextVar for TeamDependencies - used to pass deps to MCP tool calls
 # This allows tool functions that require RunContext[TeamDependencies] to
@@ -546,13 +560,18 @@ def _wrap_tool_function_for_mcp(
         )
     try:
         wrapped.__doc__ = original_func.__doc__
-    except (AttributeError, TypeError):
-        pass
+    except (AttributeError, TypeError) as e:
+        logger.debug(
+            "Could not copy __doc__ from original_func to wrapped function "
+            "for tool '%s': %s",
+            tool_name,
+            e,
+        )
 
     return wrapped
 
 
-def _create_mcp_compatible_tool(tool: Any) -> Any:
+def _create_mcp_compatible_tool(tool: Tool[object]) -> _ToolLike:
     """Create an MCP-compatible tool by wrapping the function.
 
     This creates a new tool-like object with the function wrapped
@@ -573,30 +592,37 @@ def _create_mcp_compatible_tool(tool: Any) -> Any:
 
     # Create a new tool with the wrapped function
     # pydantic_ai.tools.Tool is a dataclass, so we can use replace()
+    # Limit try block to only the replace() call to avoid catching unrelated TypeErrors
     try:
         new_tool = replace(tool, function=wrapped_function)
-        return new_tool
-    except TypeError:
+    except TypeError as e:
         # If replace doesn't work, try creating a simple wrapper object
         logger.warning(
-            "Could not use dataclasses.replace() on tool '%s', "
-            "creating wrapper object instead.",
+            "Could not use dataclasses.replace() on tool '%s': %s. "
+            "Creating wrapper object instead.",
             tool.name,
+            e,
         )
 
         class ToolWrapper:
             """Wrapper that mimics pydantic-ai Tool interface."""
 
-            def __init__(self, original_tool: Any, wrapped_func: Any) -> None:
+            def __init__(
+                self,
+                original_tool: Tool[object],
+                wrapped_func: Callable[..., Coroutine[object, object, str]],
+            ) -> None:
                 self._original = original_tool
                 self.function = wrapped_func
                 self.name = original_tool.name
                 self.description = original_tool.description
 
-            def __getattr__(self, name: str) -> Any:
+            def __getattr__(self, name: str) -> object:
                 return getattr(self._original, name)
 
         return ToolWrapper(tool, wrapped_function)
+    else:
+        return new_tool
 
 
 def _patch_leader_agent() -> None:
@@ -765,8 +791,8 @@ def _patch_leader_agent_module_references(
                 setattr(module, "create_leader_agent", patched_func)
                 logger.debug("Patched create_leader_agent reference in %s", module_name)
         except ImportError as e:
-            logger.debug(
-                "Could not import %s for patching: %s",
+            logger.warning(
+                "Could not import %s for patching create_leader_agent: %s",
                 module_name,
                 e,
             )

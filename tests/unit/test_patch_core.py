@@ -7,9 +7,11 @@ Tests cover:
 - GR-063: Unpatched usage detection and error message
 - CC-050, CC-051, CC-052: ClaudeCode support via patch_core()
 - CC-060, CC-061, CC-062: ClaudeCode tool_settings support for Leader/Evaluator/Judgment
+- MCP-001, MCP-002: MCP tool context injection
+- MCP-010, MCP-011: patched_run() ContextVar management
 """
 
-from unittest.mock import patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from claudecode_model import ClaudeCodeModel
@@ -962,3 +964,356 @@ class TestLeaderAgentPatch:
 
         # Should still be None
         assert core_patch._ORIGINAL_CREATE_LEADER_AGENT is None
+
+
+class TestWrapToolFunctionForMCP:
+    """Tests for _wrap_tool_function_for_mcp() context injection (MCP-001, MCP-002)."""
+
+    @pytest.mark.asyncio
+    async def test_wrap_tool_function_raises_when_deps_is_none(self) -> None:
+        """MCP-001: Wrapped tool function raises RuntimeError when deps is None."""
+        from mixseek_plus.core_patch import _current_deps, _wrap_tool_function_for_mcp
+
+        # Ensure _current_deps is None
+        _current_deps.set(None)
+
+        # Create a mock tool function
+        async def mock_tool_func(ctx: object, **kwargs: object) -> str:
+            return "result"
+
+        wrapped = _wrap_tool_function_for_mcp(mock_tool_func, "test_tool")
+
+        # Should raise RuntimeError when deps is None
+        with pytest.raises(RuntimeError) as exc_info:
+            await wrapped()
+
+        assert "Tool 'test_tool' called without context" in str(exc_info.value)
+
+    @pytest.mark.asyncio
+    async def test_wrap_tool_function_injects_context_when_deps_set(self) -> None:
+        """MCP-002: Wrapped tool function injects context when deps is set."""
+        from mixseek_plus.core_patch import (
+            _MockRunContext,
+            _current_deps,
+            _wrap_tool_function_for_mcp,
+        )
+
+        # Create mock deps
+        mock_deps = MagicMock()
+        mock_deps.execution_id = "test-execution-123"
+
+        # Set _current_deps
+        token = _current_deps.set(mock_deps)
+
+        try:
+            # Create a tool function that captures the context
+            captured_ctx = None
+
+            async def mock_tool_func(ctx: _MockRunContext, **kwargs: object) -> str:
+                nonlocal captured_ctx
+                captured_ctx = ctx
+                return "result"
+
+            wrapped = _wrap_tool_function_for_mcp(mock_tool_func, "test_tool")
+
+            # Call wrapped function
+            result = await wrapped(arg1="value1")
+
+            # Verify context was injected
+            assert captured_ctx is not None
+            assert isinstance(captured_ctx, _MockRunContext)
+            assert captured_ctx.deps == mock_deps
+            assert result == "result"
+        finally:
+            _current_deps.reset(token)
+
+    @pytest.mark.asyncio
+    async def test_wrap_tool_function_passes_kwargs(self) -> None:
+        """Wrapped tool function passes kwargs to original function."""
+        from mixseek_plus.core_patch import _current_deps, _wrap_tool_function_for_mcp
+
+        # Create mock deps
+        mock_deps = MagicMock()
+        mock_deps.execution_id = "test-execution-123"
+
+        token = _current_deps.set(mock_deps)
+
+        try:
+            captured_kwargs: dict[str, object] = {}
+
+            async def mock_tool_func(ctx: object, **kwargs: object) -> str:
+                nonlocal captured_kwargs
+                captured_kwargs = kwargs
+                return "result"
+
+            wrapped = _wrap_tool_function_for_mcp(mock_tool_func, "test_tool")
+
+            await wrapped(arg1="value1", arg2=42)
+
+            assert captured_kwargs == {"arg1": "value1", "arg2": 42}
+        finally:
+            _current_deps.reset(token)
+
+
+class TestPatchedRunContextVar:
+    """Tests for patched_run() ContextVar management (MCP-010, MCP-011)."""
+
+    @pytest.mark.asyncio
+    async def test_patched_run_sets_contextvar(self) -> None:
+        """MCP-010: patched_run() sets _current_deps ContextVar."""
+        from unittest.mock import patch as mock_patch
+
+        from claudecode_model import ClaudeCodeModel
+
+        from mixseek_plus import core_patch
+        from mixseek_plus.core_patch import (
+            _current_deps,
+            _patch_leader_agent,
+            reset_leader_agent_patch,
+        )
+
+        core_patch._ORIGINAL_CREATE_LEADER_AGENT = None
+
+        # Create mock tool
+        mock_tool = MagicMock()
+        mock_tool.name = "test_tool"
+        mock_tool.description = "A test tool"
+        mock_tool.function = AsyncMock(return_value="result")
+
+        # Create mock ClaudeCodeModel
+        mock_claudecode_model = MagicMock(spec=ClaudeCodeModel)
+        mock_claudecode_model.set_agent_toolsets = MagicMock()
+
+        # Track what deps was during run
+        deps_during_run = None
+
+        async def capture_deps(*args: object, **kwargs: object) -> str:
+            nonlocal deps_during_run
+            deps_during_run = _current_deps.get()
+            return "run_result"
+
+        # Create mock leader agent with async run
+        mock_leader_agent = MagicMock()
+        mock_leader_agent.model = mock_claudecode_model
+        mock_leader_agent._function_toolset = MagicMock()
+        mock_leader_agent._function_toolset.tools = {"test_tool": mock_tool}
+        mock_leader_agent.run = AsyncMock(side_effect=capture_deps)
+
+        mock_team_config = MagicMock()
+        mock_team_config.team_id = "test-team"
+
+        mock_original_func = MagicMock(return_value=mock_leader_agent)
+
+        # Create mock deps
+        mock_deps = MagicMock()
+        mock_deps.execution_id = "test-execution-456"
+
+        with mock_patch(
+            "mixseek.agents.leader.agent.create_leader_agent",
+            mock_original_func,
+        ):
+            _patch_leader_agent()
+
+            import mixseek.agents.leader.agent as leader_module
+
+            patched_func = leader_module.create_leader_agent
+
+            # Get the patched leader agent
+            result_agent = patched_func(mock_team_config, {})
+
+            # Call run with deps
+            await result_agent.run("test prompt", deps=mock_deps)
+
+            # Verify deps was set during run
+            assert deps_during_run == mock_deps
+
+        reset_leader_agent_patch()
+
+    @pytest.mark.asyncio
+    async def test_patched_run_resets_contextvar_on_success(self) -> None:
+        """MCP-011: patched_run() resets ContextVar after successful completion."""
+        from unittest.mock import patch as mock_patch
+
+        from claudecode_model import ClaudeCodeModel
+
+        from mixseek_plus import core_patch
+        from mixseek_plus.core_patch import (
+            _current_deps,
+            _patch_leader_agent,
+            reset_leader_agent_patch,
+        )
+
+        core_patch._ORIGINAL_CREATE_LEADER_AGENT = None
+
+        mock_tool = MagicMock()
+        mock_tool.name = "test_tool"
+        mock_tool.description = "A test tool"
+        mock_tool.function = AsyncMock(return_value="result")
+
+        mock_claudecode_model = MagicMock(spec=ClaudeCodeModel)
+        mock_claudecode_model.set_agent_toolsets = MagicMock()
+
+        mock_leader_agent = MagicMock()
+        mock_leader_agent.model = mock_claudecode_model
+        mock_leader_agent._function_toolset = MagicMock()
+        mock_leader_agent._function_toolset.tools = {"test_tool": mock_tool}
+        mock_leader_agent.run = AsyncMock(return_value="run_result")
+
+        mock_team_config = MagicMock()
+        mock_team_config.team_id = "test-team"
+
+        mock_original_func = MagicMock(return_value=mock_leader_agent)
+
+        mock_deps = MagicMock()
+        mock_deps.execution_id = "test-execution-789"
+
+        # Ensure _current_deps is None before
+        _current_deps.set(None)
+
+        with mock_patch(
+            "mixseek.agents.leader.agent.create_leader_agent",
+            mock_original_func,
+        ):
+            _patch_leader_agent()
+
+            import mixseek.agents.leader.agent as leader_module
+
+            patched_func = leader_module.create_leader_agent
+            result_agent = patched_func(mock_team_config, {})
+
+            await result_agent.run("test prompt", deps=mock_deps)
+
+            # Verify ContextVar is reset after run
+            assert _current_deps.get() is None
+
+        reset_leader_agent_patch()
+
+    @pytest.mark.asyncio
+    async def test_patched_run_resets_contextvar_on_exception(self) -> None:
+        """MCP-011: patched_run() resets ContextVar even when exception occurs."""
+        from unittest.mock import patch as mock_patch
+
+        from claudecode_model import ClaudeCodeModel
+
+        from mixseek_plus import core_patch
+        from mixseek_plus.core_patch import (
+            _current_deps,
+            _patch_leader_agent,
+            reset_leader_agent_patch,
+        )
+
+        core_patch._ORIGINAL_CREATE_LEADER_AGENT = None
+
+        mock_tool = MagicMock()
+        mock_tool.name = "test_tool"
+        mock_tool.description = "A test tool"
+        mock_tool.function = AsyncMock(return_value="result")
+
+        mock_claudecode_model = MagicMock(spec=ClaudeCodeModel)
+        mock_claudecode_model.set_agent_toolsets = MagicMock()
+
+        mock_leader_agent = MagicMock()
+        mock_leader_agent.model = mock_claudecode_model
+        mock_leader_agent._function_toolset = MagicMock()
+        mock_leader_agent._function_toolset.tools = {"test_tool": mock_tool}
+        # Make run raise an exception
+        mock_leader_agent.run = AsyncMock(side_effect=ValueError("Test error"))
+
+        mock_team_config = MagicMock()
+        mock_team_config.team_id = "test-team"
+
+        mock_original_func = MagicMock(return_value=mock_leader_agent)
+
+        mock_deps = MagicMock()
+        mock_deps.execution_id = "test-execution-error"
+
+        # Ensure _current_deps is None before
+        _current_deps.set(None)
+
+        with mock_patch(
+            "mixseek.agents.leader.agent.create_leader_agent",
+            mock_original_func,
+        ):
+            _patch_leader_agent()
+
+            import mixseek.agents.leader.agent as leader_module
+
+            patched_func = leader_module.create_leader_agent
+            result_agent = patched_func(mock_team_config, {})
+
+            # Call run which should raise
+            with pytest.raises(ValueError, match="Test error"):
+                await result_agent.run("test prompt", deps=mock_deps)
+
+            # Verify ContextVar is reset even after exception
+            assert _current_deps.get() is None
+
+        reset_leader_agent_patch()
+
+    @pytest.mark.asyncio
+    async def test_patched_run_without_deps_does_not_set_contextvar(self) -> None:
+        """patched_run() without deps does not modify ContextVar."""
+        from unittest.mock import patch as mock_patch
+
+        from claudecode_model import ClaudeCodeModel
+
+        from mixseek_plus import core_patch
+        from mixseek_plus.core_patch import (
+            _current_deps,
+            _patch_leader_agent,
+            reset_leader_agent_patch,
+        )
+
+        core_patch._ORIGINAL_CREATE_LEADER_AGENT = None
+
+        mock_tool = MagicMock()
+        mock_tool.name = "test_tool"
+        mock_tool.description = "A test tool"
+        mock_tool.function = AsyncMock(return_value="result")
+
+        mock_claudecode_model = MagicMock(spec=ClaudeCodeModel)
+        mock_claudecode_model.set_agent_toolsets = MagicMock()
+
+        # Track if original run was called
+        original_run_called = False
+
+        async def mock_run(*args: object, **kwargs: object) -> str:
+            nonlocal original_run_called
+            original_run_called = True
+            return "run_result"
+
+        mock_leader_agent = MagicMock()
+        mock_leader_agent.model = mock_claudecode_model
+        mock_leader_agent._function_toolset = MagicMock()
+        mock_leader_agent._function_toolset.tools = {"test_tool": mock_tool}
+        mock_leader_agent.run = mock_run
+
+        mock_team_config = MagicMock()
+        mock_team_config.team_id = "test-team"
+
+        mock_original_func = MagicMock(return_value=mock_leader_agent)
+
+        # Ensure _current_deps is None
+        _current_deps.set(None)
+
+        with mock_patch(
+            "mixseek.agents.leader.agent.create_leader_agent",
+            mock_original_func,
+        ):
+            _patch_leader_agent()
+
+            import mixseek.agents.leader.agent as leader_module
+
+            patched_func = leader_module.create_leader_agent
+            result_agent = patched_func(mock_team_config, {})
+
+            # Call run without deps (deps=None is default)
+            await result_agent.run("test prompt")
+
+            # Verify original run was called
+            assert original_run_called
+
+            # Verify ContextVar was not modified
+            assert _current_deps.get() is None
+
+        reset_leader_agent_patch()
