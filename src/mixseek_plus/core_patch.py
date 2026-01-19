@@ -21,6 +21,9 @@ from pydantic_ai.agent import Agent
 from pydantic_ai.models import Model
 from pydantic_ai.tools import Tool
 
+from mixseek.exceptions import WorkspacePathNotSpecifiedError
+from mixseek.utils.env import get_workspace_for_config
+
 from mixseek_plus.presets import PresetError
 from mixseek_plus.providers import CLAUDECODE_PROVIDER_PREFIX, GROQ_PROVIDER_PREFIX
 from mixseek_plus.providers.claudecode import ClaudeCodeToolSettings
@@ -346,8 +349,11 @@ def _patch_configuration_manager() -> None:
     ) -> TeamSettings:
         team_settings = original_func(self, toml_file, **extra_kwargs)
 
-        # Determine workspace from ConfigurationManager or derive from toml_file
-        workspace = _get_workspace_from_config_manager(self, toml_file)
+        # Determine workspace using mixseek-core's utility
+        try:
+            workspace = get_workspace_for_config()
+        except WorkspacePathNotSpecifiedError:
+            workspace = None
 
         # Auto-apply leader.tool_settings.claudecode with defensive programming
         leader = getattr(team_settings, "leader", None)
@@ -369,56 +375,6 @@ def _patch_configuration_manager() -> None:
         return team_settings
 
     ConfigurationManager.load_team_settings = patched_load_team_settings  # type: ignore[method-assign]
-
-
-def _get_workspace_from_config_manager(
-    config_manager: object,
-    toml_file: Path,
-) -> Path | None:
-    """Get workspace directory from ConfigurationManager or derive from toml_file.
-
-    Tries multiple strategies to determine the workspace:
-    1. Use ConfigurationManager.workspace if set
-    2. Derive from toml_file path (parent of 'configs' directory)
-
-    Args:
-        config_manager: ConfigurationManager instance
-        toml_file: Path to the TOML configuration file
-
-    Returns:
-        Workspace directory path, or None if cannot be determined.
-    """
-    # Strategy 1: Use workspace attribute if available
-    workspace = getattr(config_manager, "workspace", None)
-    if workspace is not None:
-        logger.debug(
-            "ConfigurationManager.workspace から workspace を取得: %s", workspace
-        )
-        return Path(workspace) if not isinstance(workspace, Path) else workspace
-
-    # Strategy 2: Derive from toml_file path
-    # Typical structure: {workspace}/configs/{config}.toml
-    # or {workspace}/configs/{subdir}/{config}.toml
-    toml_file = toml_file.resolve()
-    current = toml_file.parent
-
-    # Walk up the directory tree looking for 'configs' directory
-    while current != current.parent:  # Stop at root
-        if current.name == "configs":
-            workspace = current.parent
-            logger.debug(
-                "toml_file パスから workspace を導出: %s (from %s)",
-                workspace,
-                toml_file,
-            )
-            return workspace
-        current = current.parent
-
-    logger.debug(
-        "workspace を特定できませんでした。toml_file: %s",
-        toml_file,
-    )
-    return None
 
 
 def reset_configuration_manager_patch() -> None:

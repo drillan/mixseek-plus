@@ -7,7 +7,6 @@ following the same pattern as BaseGroqAgent.
 from __future__ import annotations
 
 import logging
-import os
 import time
 from abc import abstractmethod
 from dataclasses import dataclass
@@ -20,6 +19,7 @@ from pydantic_ai.models import Model
 
 from mixseek.agents.member.base import BaseMemberAgent
 from mixseek.models.member_agent import MemberAgentConfig, MemberAgentResult
+from mixseek.utils.env import get_workspace_from_env
 
 from mixseek_plus.providers import CLAUDECODE_PROVIDER_PREFIX
 from mixseek_plus.providers.claudecode import (
@@ -155,17 +155,15 @@ class BaseClaudeCodeAgent(BaseMemberAgent):
     def _get_workspace(self) -> Path | None:
         """Get workspace directory from environment variable.
 
-        Member agents determine the workspace from the MIXSEEK_WORKSPACE
-        environment variable, which should be set by the orchestrator.
+        Uses mixseek-core's get_workspace_from_env() for consistency.
 
         Returns:
             Workspace directory path, or None if not set.
         """
-        workspace_str = os.environ.get(WORKSPACE_ENV_VAR)
-        if workspace_str is None:
+        workspace = get_workspace_from_env()
+        if workspace is None:
             return None
 
-        workspace = Path(workspace_str)
         if not workspace.exists():
             logger.warning(
                 "%s 環境変数で指定されたディレクトリが存在しません: %s",

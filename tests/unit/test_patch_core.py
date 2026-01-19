@@ -695,7 +695,9 @@ agent_class = "PlainAgent"
         ConfigurationManager.load_team_settings = original_func  # type: ignore[method-assign]
         core_patch._ORIGINAL_LOAD_TEAM_SETTINGS = None
 
-    def test_configuration_manager_patch_resolves_preset(self, tmp_path: Path) -> None:
+    def test_configuration_manager_patch_resolves_preset(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """LTS-012: ConfigurationManager patch resolves preset from workspace."""
         from mixseek_plus import core_patch
         from mixseek_plus.core_patch import get_claudecode_tool_settings, patch_core
@@ -721,6 +723,9 @@ agent_class = "PlainAgent"
 permission_mode = "bypassPermissions"
 disallowed_tools = ["Bash", "Write", "Edit"]
 """)
+
+        # Set MIXSEEK_WORKSPACE environment variable for get_workspace_for_config()
+        monkeypatch.setenv("MIXSEEK_WORKSPACE", str(workspace))
 
         # Create TOML file that references the preset
         toml_content = """
@@ -773,83 +778,6 @@ agent_class = "ClaudeCodePlainAgent"
         assert result.get("max_turns") == 100
         # Preset key should be removed
         assert "preset" not in result
-
-
-class TestGetWorkspaceFromConfigManager:
-    """Tests for _get_workspace_from_config_manager() function."""
-
-    def test_get_workspace_from_config_manager_attribute(self) -> None:
-        """Should use workspace attribute if available."""
-        from unittest.mock import MagicMock
-
-        from mixseek_plus.core_patch import _get_workspace_from_config_manager
-
-        mock_manager = MagicMock()
-        mock_manager.workspace = Path("/my/workspace")
-
-        result = _get_workspace_from_config_manager(
-            mock_manager, Path("/some/toml/file.toml")
-        )
-
-        assert result == Path("/my/workspace")
-
-    def test_get_workspace_from_toml_path_configs_dir(self, tmp_path: Path) -> None:
-        """Should derive workspace from toml_file path when in configs directory."""
-        from unittest.mock import MagicMock
-
-        from mixseek_plus.core_patch import _get_workspace_from_config_manager
-
-        mock_manager = MagicMock()
-        mock_manager.workspace = None
-
-        workspace = tmp_path
-        configs_dir = workspace / "configs"
-        configs_dir.mkdir(parents=True)
-        toml_file = configs_dir / "team.toml"
-        toml_file.touch()
-
-        result = _get_workspace_from_config_manager(mock_manager, toml_file)
-
-        assert result == workspace
-
-    def test_get_workspace_from_toml_path_nested_configs(self, tmp_path: Path) -> None:
-        """Should derive workspace from nested configs subdirectory."""
-        from unittest.mock import MagicMock
-
-        from mixseek_plus.core_patch import _get_workspace_from_config_manager
-
-        mock_manager = MagicMock()
-        mock_manager.workspace = None
-
-        workspace = tmp_path
-        configs_dir = workspace / "configs" / "agents"
-        configs_dir.mkdir(parents=True)
-        toml_file = configs_dir / "team.toml"
-        toml_file.touch()
-
-        result = _get_workspace_from_config_manager(mock_manager, toml_file)
-
-        assert result == workspace
-
-    def test_get_workspace_returns_none_when_not_in_configs(
-        self, tmp_path: Path
-    ) -> None:
-        """Should return None when toml_file is not under configs directory."""
-        from unittest.mock import MagicMock
-
-        from mixseek_plus.core_patch import _get_workspace_from_config_manager
-
-        mock_manager = MagicMock()
-        mock_manager.workspace = None
-
-        # Create toml file not in configs directory
-        workspace = tmp_path
-        toml_file = workspace / "team.toml"
-        toml_file.touch()
-
-        result = _get_workspace_from_config_manager(mock_manager, toml_file)
-
-        assert result is None
 
 
 class TestLeaderAgentPatch:
