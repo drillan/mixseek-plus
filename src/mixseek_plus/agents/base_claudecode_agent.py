@@ -12,7 +12,7 @@ import time
 from abc import abstractmethod
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, cast
+from typing import cast
 
 from claudecode_model import CLIExecutionError, CLINotFoundError, CLIResponseParseError
 from pydantic_ai import Agent
@@ -133,7 +133,8 @@ class BaseClaudeCodeAgent(BaseMemberAgent):
         if workspace is None:
             logger.warning(
                 "プリセット '%s' が指定されていますが、%s 環境変数が設定されていないため"
-                "プリセット解決をスキップします。preset キーは無視されます。",
+                "プリセット解決をスキップします。preset キーは無視されます。"
+                "注意: disallowed_tools などのセキュリティ設定が適用されない可能性があります。",
                 preset_name,
                 WORKSPACE_ENV_VAR,
             )
@@ -303,9 +304,9 @@ class BaseClaudeCodeAgent(BaseMemberAgent):
             if context:
                 metadata["context"] = context  # type: ignore[typeddict-item]
 
-            # Cast TypedDicts to dict[str, Any] for API compatibility
-            usage_dict = cast(dict[str, Any], usage_info) if usage_info else None
-            metadata_dict = cast(dict[str, Any], metadata)
+            # Cast TypedDicts to dict[str, object] for API compatibility
+            usage_dict = cast(dict[str, object], usage_info) if usage_info else None
+            metadata_dict = cast(dict[str, object], metadata)
 
             result_obj = MemberAgentResult.success(
                 content=str(result.output),

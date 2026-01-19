@@ -12,22 +12,28 @@ Example preset file (configs/presets/claudecode.toml):
     [full_access]
     permission_mode = "bypassPermissions"
 
-Example usage in team config:
-    [team.leader.tool_settings]
-    claudecode = { preset = "delegate_only" }
+Example usage in team config (Leader):
+    [leader.tool_settings.claudecode]
+    preset = "delegate_only"
 
-    # Preset with local overrides:
-    claudecode = { preset = "delegate_only", max_turns = 50 }
+Example usage in team config (Member):
+    [members.tool_settings.claudecode]
+    preset = "delegate_only"
+    max_turns = 50  # Preset with local overrides
 """
 
 from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from mixseek_plus.providers.claudecode import ClaudeCodeToolSettings
+
+# Type alias for raw TOML preset data (nested dicts, strings, ints, lists)
+# Using object instead of Any to satisfy CLAUDE.md type safety requirements
+PresetData = dict[str, object]
 
 logger = logging.getLogger(__name__)
 
@@ -63,6 +69,34 @@ class PresetFileNotFoundError(PresetError):
             f"Preset file not found: {file_path}\n"
             f"Expected location: {workspace / PRESET_FILE_PATH}\n"
             f"Please create the preset file or remove the 'preset' key from tool_settings."
+        )
+        super().__init__(message)
+
+
+class PresetSyntaxError(PresetError):
+    """Raised when the preset TOML file contains invalid syntax.
+
+    This error indicates that the configs/presets/claudecode.toml file
+    contains invalid TOML syntax that cannot be parsed.
+
+    Attributes:
+        file_path: The path to the preset file with invalid syntax.
+        original_error: The original tomllib.TOMLDecodeError.
+    """
+
+    def __init__(self, file_path: Path, original_error: Exception) -> None:
+        """Initialize PresetSyntaxError.
+
+        Args:
+            file_path: The path to the preset file with invalid syntax.
+            original_error: The original tomllib.TOMLDecodeError.
+        """
+        self.file_path = file_path
+        self.original_error = original_error
+        message = (
+            f"Invalid TOML syntax in preset file: {file_path}\n"
+            f"Error: {original_error}\n"
+            f"Please check the TOML syntax in the preset file."
         )
         super().__init__(message)
 
@@ -110,7 +144,7 @@ class PresetNotFoundError(PresetError):
         super().__init__(message)
 
 
-def _load_preset_file(workspace: Path) -> dict[str, Any]:
+def _load_preset_file(workspace: Path) -> PresetData:
     """Load and parse the preset TOML file from the workspace.
 
     Args:
@@ -121,6 +155,7 @@ def _load_preset_file(workspace: Path) -> dict[str, Any]:
 
     Raises:
         PresetFileNotFoundError: If the preset file does not exist.
+        PresetSyntaxError: If the preset file contains invalid TOML syntax.
     """
     import tomllib
 
@@ -129,8 +164,11 @@ def _load_preset_file(workspace: Path) -> dict[str, Any]:
     if not preset_file.exists():
         raise PresetFileNotFoundError(preset_file, workspace)
 
-    with preset_file.open("rb") as f:
-        return tomllib.load(f)
+    try:
+        with preset_file.open("rb") as f:
+            return tomllib.load(f)
+    except tomllib.TOMLDecodeError as e:
+        raise PresetSyntaxError(preset_file, e) from e
 
 
 def resolve_claudecode_preset(
@@ -226,7 +264,7 @@ def resolve_and_merge_preset(
     preset_settings = resolve_claudecode_preset(preset_name, workspace)
 
     # Merge: preset as base, local settings override
-    merged: dict[str, Any] = dict(preset_settings)
+    merged: PresetData = dict(preset_settings)
 
     for key, value in settings.items():
         if key != "preset":

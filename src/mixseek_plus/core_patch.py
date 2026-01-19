@@ -15,12 +15,13 @@ from collections.abc import Callable, Coroutine, Mapping
 from contextvars import ContextVar
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Protocol
+from typing import TYPE_CHECKING, Protocol
 
 from pydantic_ai.agent import Agent
 from pydantic_ai.models import Model
 from pydantic_ai.tools import Tool
 
+from mixseek_plus.presets import PresetError
 from mixseek_plus.providers import CLAUDECODE_PROVIDER_PREFIX, GROQ_PROVIDER_PREFIX
 from mixseek_plus.providers.claudecode import ClaudeCodeToolSettings
 
@@ -80,13 +81,13 @@ _CLAUDECODE_TOOL_SETTINGS: ClaudeCodeToolSettings | None = None
 _ORIGINAL_LOAD_TEAM_SETTINGS: Callable[..., TeamSettings] | None = None
 
 # Module-level state for AggregationStore patch (Issue #19)
-_ORIGINAL_SAVE_AGGREGATION: Callable[..., Coroutine[Any, Any, None]] | None = None
+_ORIGINAL_SAVE_AGGREGATION: Callable[..., Coroutine[object, object, None]] | None = None
 
 # Module-level state for create_leader_agent patch (Issue #23)
 # Type mirrors mixseek.agents.leader.agent.create_leader_agent signature
 _ORIGINAL_CREATE_LEADER_AGENT: (
     Callable[
-        [TeamConfig, Mapping[str, Any]],
+        [TeamConfig, Mapping[str, object]],
         Agent[TeamDependencies, str],
     ]
     | None
@@ -295,7 +296,8 @@ def _resolve_preset_settings(
     if workspace is None:
         logger.warning(
             "プリセット '%s' が指定されていますが、workspace が不明なため"
-            "プリセット解決をスキップします。preset キーは無視されます。",
+            "プリセット解決をスキップします。preset キーは無視されます。"
+            "注意: disallowed_tools などのセキュリティ設定が適用されない可能性があります。",
             preset_name,
         )
         # Remove preset key and return other settings
@@ -352,7 +354,12 @@ def _patch_configuration_manager() -> None:
         if leader is not None:
             try:
                 apply_leader_tool_settings(leader, workspace)
+            except PresetError:
+                # PresetError indicates a configuration issue that should be surfaced
+                # (e.g., missing preset file, invalid preset name, invalid TOML syntax)
+                raise
             except Exception as e:
+                # Log unexpected errors but don't fail the configuration loading
                 logger.warning("leader.tool_settings の自動適用に失敗しました: %s", e)
         else:
             logger.debug(
@@ -618,9 +625,9 @@ def reset_aggregation_store_patch() -> None:
 
 
 def _wrap_tool_function_for_mcp(
-    original_func: Callable[..., Coroutine[Any, Any, str]],
+    original_func: Callable[..., Coroutine[object, object, str]],
     tool_name: str,
-) -> Callable[..., Coroutine[Any, Any, str]]:
+) -> Callable[..., Coroutine[object, object, str]]:
     """Wrap a pydantic-ai tool function to inject context from contextvar.
 
     Pydantic-ai tool functions expect a RunContext as the first argument,
@@ -640,7 +647,7 @@ def _wrap_tool_function_for_mcp(
         A wrapped function that injects the context automatically.
     """
 
-    async def wrapped(**kwargs: Any) -> str:
+    async def wrapped(**kwargs: object) -> str:
         deps = _current_deps.get()
         if deps is None:
             raise RuntimeError(
@@ -769,7 +776,7 @@ def _patch_leader_agent() -> None:
 
     def patched_create_leader_agent(
         team_config: TeamConfig,
-        member_agents: Mapping[str, Any],
+        member_agents: Mapping[str, object],
     ) -> Agent[TeamDependencies, str]:
         """Patched create_leader_agent with ClaudeCodeModel toolset support.
 
@@ -825,10 +832,10 @@ def _patch_leader_agent() -> None:
                 original_run = leader_agent.run
 
                 async def patched_run(
-                    *args: Any,
+                    *args: object,
                     deps: TeamDependencies | None = None,
-                    **kwargs: Any,
-                ) -> Any:
+                    **kwargs: object,
+                ) -> object:
                     """Patched run() that sets _current_deps contextvar."""
                     if deps is not None:
                         token = _current_deps.set(deps)
@@ -837,14 +844,14 @@ def _patch_leader_agent() -> None:
                             deps.execution_id,
                         )
                         try:
-                            return await original_run(*args, deps=deps, **kwargs)
+                            return await original_run(*args, deps=deps, **kwargs)  # type: ignore[call-overload]
                         finally:
                             _current_deps.reset(token)
                     else:
-                        return await original_run(*args, **kwargs)
+                        return await original_run(*args, **kwargs)  # type: ignore[call-overload]
 
                 # Replace run method
-                leader_agent.run = patched_run  # type: ignore[method-assign]
+                leader_agent.run = patched_run  # type: ignore[method-assign, assignment]
                 logger.debug("Patched leader_agent.run() to set _current_deps")
             else:
                 logger.debug(
@@ -864,7 +871,7 @@ def _patch_leader_agent() -> None:
 
 def _patch_leader_agent_module_references(
     patched_func: Callable[
-        [TeamConfig, Mapping[str, Any]], Agent[TeamDependencies, str]
+        [TeamConfig, Mapping[str, object]], Agent[TeamDependencies, str]
     ],
 ) -> None:
     """Patch all modules that have imported create_leader_agent directly.

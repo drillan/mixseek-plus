@@ -202,6 +202,18 @@ max_turns = 50  # プリセットの設定 + 追加設定
 
 この場合、`read_only`プリセットの設定に加えて、`max_turns = 50`が追加されます。ローカル設定はプリセットの値を上書きします。
 
+**Memberエージェントでのプリセット解決:**
+
+Memberエージェント（`claudecode_plain`など）でプリセットを使用する場合、`MIXSEEK_WORKSPACE` 環境変数を設定する必要があります。この環境変数はプリセットファイル（`configs/presets/claudecode.toml`）の検索ディレクトリを指定します。
+
+```bash
+export MIXSEEK_WORKSPACE="/path/to/your/workspace"
+```
+
+**重要:** `MIXSEEK_WORKSPACE` が設定されていない場合、プリセット解決はスキップされ、`disallowed_tools` などのセキュリティ設定が適用されない可能性があります。
+
+Leader/Evaluatorエージェントでは、TOML設定ファイルのパスからワークスペースが自動的に推定されるため、この環境変数は不要です。
+
 ### 共通の設定オプション
 
 すべてのMemberエージェントで使用可能な設定オプションです。
@@ -443,3 +455,15 @@ export TAVILY_API_KEY="your-tavily-api-key"
 ```
 
 ClaudeCodeはWebSearch/WebFetchツールが組み込まれているため、Tavily APIキーは不要です。
+
+### プリセットが適用されない
+
+Memberエージェントでプリセットを使用する際に警告ログが出て設定が適用されない場合は、`MIXSEEK_WORKSPACE` 環境変数が設定されていることを確認してください。
+
+```bash
+export MIXSEEK_WORKSPACE="/path/to/your/workspace"
+```
+
+この環境変数はプリセットファイル（`configs/presets/claudecode.toml`）の検索先ディレクトリを指定します。設定されていない場合、プリセット解決がスキップされ、`disallowed_tools` などのセキュリティ設定が適用されません。
+
+Leader/Evaluatorエージェントでは、TOML設定ファイルのパスから自動的に推定されるため、この環境変数は通常不要です。

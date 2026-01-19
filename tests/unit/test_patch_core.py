@@ -11,6 +11,7 @@ Tests cover:
 - MCP-010, MCP-011: patched_run() ContextVar management
 """
 
+from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -461,12 +462,8 @@ class TestApplyLeaderToolSettings:
         assert result.get("working_directory") == "/workspace"
         assert result.get("max_turns") == 5
 
-    def test_apply_leader_tool_settings_with_preset(
-        self, tmp_path: pytest.TempPathFactory
-    ) -> None:
+    def test_apply_leader_tool_settings_with_preset(self, tmp_path: Path) -> None:
         """LTS-005: apply_leader_tool_settings resolves preset when workspace provided."""
-        from pathlib import Path
-
         from mixseek_plus import core_patch
         from mixseek_plus.core_patch import (
             apply_leader_tool_settings,
@@ -477,7 +474,7 @@ class TestApplyLeaderToolSettings:
         core_patch._CLAUDECODE_TOOL_SETTINGS = None
 
         # Create preset file
-        workspace = Path(tmp_path)  # type: ignore[arg-type]
+        workspace = tmp_path
         preset_dir = workspace / "configs" / "presets"
         preset_dir.mkdir(parents=True)
         preset_file = preset_dir / "claudecode.toml"
@@ -543,11 +540,9 @@ class TestConfigurationManagerPatch:
     """Tests for ConfigurationManager.load_team_settings() patching (LTS-010, LTS-011)."""
 
     def test_configuration_manager_patch_applies_leader_tool_settings(
-        self, tmp_path: pytest.TempPathFactory
+        self, tmp_path: Path
     ) -> None:
         """LTS-010: ConfigurationManager patch applies leader tool_settings automatically."""
-        from pathlib import Path
-
         from mixseek_plus import core_patch
         from mixseek_plus.core_patch import get_claudecode_tool_settings, patch_core
 
@@ -591,7 +586,7 @@ text = "You are a helpful assistant."
 agent_module = "mixseek_plus.agents.claudecode_agent"
 agent_class = "ClaudeCodePlainAgent"
 """
-        toml_file = Path(tmp_path) / "team.toml"  # type: ignore[arg-type]
+        toml_file = tmp_path / "team.toml"
         toml_file.write_text(toml_content)
 
         # Load team settings - should auto-apply leader.tool_settings
@@ -606,11 +601,9 @@ agent_class = "ClaudeCodePlainAgent"
         assert result.get("disallowed_tools") == ["Bash", "Write", "Edit"]
 
     def test_configuration_manager_patch_without_tool_settings(
-        self, tmp_path: pytest.TempPathFactory
+        self, tmp_path: Path
     ) -> None:
         """LTS-011: ConfigurationManager patch works without tool_settings in TOML."""
-        from pathlib import Path
-
         from mixseek_plus import core_patch
         from mixseek_plus.core_patch import get_claudecode_tool_settings, patch_core
 
@@ -651,7 +644,7 @@ text = "You are a helpful assistant."
 agent_module = "mixseek.agents.plain.agent"
 agent_class = "PlainAgent"
 """
-        toml_file = Path(tmp_path) / "team.toml"  # type: ignore[arg-type]
+        toml_file = tmp_path / "team.toml"
         toml_file.write_text(toml_content)
 
         # Load team settings - should not set tool_settings
@@ -702,12 +695,8 @@ agent_class = "PlainAgent"
         ConfigurationManager.load_team_settings = original_func  # type: ignore[method-assign]
         core_patch._ORIGINAL_LOAD_TEAM_SETTINGS = None
 
-    def test_configuration_manager_patch_resolves_preset(
-        self, tmp_path: pytest.TempPathFactory
-    ) -> None:
+    def test_configuration_manager_patch_resolves_preset(self, tmp_path: Path) -> None:
         """LTS-012: ConfigurationManager patch resolves preset from workspace."""
-        from pathlib import Path
-
         from mixseek_plus import core_patch
         from mixseek_plus.core_patch import get_claudecode_tool_settings, patch_core
 
@@ -720,7 +709,7 @@ agent_class = "PlainAgent"
         patch_core()
 
         # Create workspace structure with preset file
-        workspace = Path(tmp_path)  # type: ignore[arg-type]
+        workspace = tmp_path
         configs_dir = workspace / "configs"
         presets_dir = configs_dir / "presets"
         presets_dir.mkdir(parents=True)
@@ -791,7 +780,6 @@ class TestGetWorkspaceFromConfigManager:
 
     def test_get_workspace_from_config_manager_attribute(self) -> None:
         """Should use workspace attribute if available."""
-        from pathlib import Path
         from unittest.mock import MagicMock
 
         from mixseek_plus.core_patch import _get_workspace_from_config_manager
@@ -805,11 +793,8 @@ class TestGetWorkspaceFromConfigManager:
 
         assert result == Path("/my/workspace")
 
-    def test_get_workspace_from_toml_path_configs_dir(
-        self, tmp_path: pytest.TempPathFactory
-    ) -> None:
+    def test_get_workspace_from_toml_path_configs_dir(self, tmp_path: Path) -> None:
         """Should derive workspace from toml_file path when in configs directory."""
-        from pathlib import Path
         from unittest.mock import MagicMock
 
         from mixseek_plus.core_patch import _get_workspace_from_config_manager
@@ -817,7 +802,7 @@ class TestGetWorkspaceFromConfigManager:
         mock_manager = MagicMock()
         mock_manager.workspace = None
 
-        workspace = Path(tmp_path)  # type: ignore[arg-type]
+        workspace = tmp_path
         configs_dir = workspace / "configs"
         configs_dir.mkdir(parents=True)
         toml_file = configs_dir / "team.toml"
@@ -827,11 +812,8 @@ class TestGetWorkspaceFromConfigManager:
 
         assert result == workspace
 
-    def test_get_workspace_from_toml_path_nested_configs(
-        self, tmp_path: pytest.TempPathFactory
-    ) -> None:
+    def test_get_workspace_from_toml_path_nested_configs(self, tmp_path: Path) -> None:
         """Should derive workspace from nested configs subdirectory."""
-        from pathlib import Path
         from unittest.mock import MagicMock
 
         from mixseek_plus.core_patch import _get_workspace_from_config_manager
@@ -839,7 +821,7 @@ class TestGetWorkspaceFromConfigManager:
         mock_manager = MagicMock()
         mock_manager.workspace = None
 
-        workspace = Path(tmp_path)  # type: ignore[arg-type]
+        workspace = tmp_path
         configs_dir = workspace / "configs" / "agents"
         configs_dir.mkdir(parents=True)
         toml_file = configs_dir / "team.toml"
@@ -850,10 +832,9 @@ class TestGetWorkspaceFromConfigManager:
         assert result == workspace
 
     def test_get_workspace_returns_none_when_not_in_configs(
-        self, tmp_path: pytest.TempPathFactory
+        self, tmp_path: Path
     ) -> None:
         """Should return None when toml_file is not under configs directory."""
-        from pathlib import Path
         from unittest.mock import MagicMock
 
         from mixseek_plus.core_patch import _get_workspace_from_config_manager
@@ -862,7 +843,7 @@ class TestGetWorkspaceFromConfigManager:
         mock_manager.workspace = None
 
         # Create toml file not in configs directory
-        workspace = Path(tmp_path)  # type: ignore[arg-type]
+        workspace = tmp_path
         toml_file = workspace / "team.toml"
         toml_file.touch()
 
