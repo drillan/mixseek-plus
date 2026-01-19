@@ -1,7 +1,7 @@
 """Unit tests for CLI wrapper module.
 
 Tests cover:
-- GR-070: CLI wrapper provides mixseek command
+- GR-070: CLI wrapper provides mixseek-plus/mskp command
 - GR-071: CLI automatically calls patch_core() on startup
 - GR-072: Groq models work via CLI without additional setup
 - GR-073: CLI maintains full compatibility with mixseek-core
@@ -29,7 +29,7 @@ class TestCLIWrapper:
     """Tests for CLI wrapper functionality."""
 
     def test_cli_app_exists(self) -> None:
-        """GR-070: CLI app should exist and be a Typer instance."""
+        """GR-070: CLI app (mixseek-plus/mskp) should exist and be a Typer instance."""
         from mixseek_plus.cli import app
         import typer
 

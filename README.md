@@ -57,7 +57,9 @@ model = "groq:llama-3.3-70b-versatile"
 
 ```bash
 # チーム実行
-mixseek team "タスク" --config team.toml
+mixseek-plus team "タスク" --config team.toml
+# または短縮形
+mskp team "タスク" --config team.toml
 ```
 
 ## 主要機能

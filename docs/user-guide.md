@@ -304,10 +304,13 @@ result = team.run("タスクを実行してください")
 
 ```bash
 # チーム実行
-mixseek team "タスク" --config team.toml
+mixseek-plus team "タスク" --config team.toml
+# または短縮形
+mskp team "タスク" --config team.toml
 
 # ヘルプ表示
-mixseek --help
+mixseek-plus --help
+mskp --help
 ```
 
 ## トラブルシューティング

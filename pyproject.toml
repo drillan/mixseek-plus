@@ -16,7 +16,8 @@ dependencies = [
 ]
 
 [project.scripts]
-mixseek = "mixseek_plus.cli:main"
+mixseek-plus = "mixseek_plus.cli:main"
+mskp = "mixseek_plus.cli:main"
 
 [project.optional-dependencies]
 # Observability with Logfire (optional for development/debugging)
