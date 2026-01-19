@@ -1,153 +1,200 @@
 ---
 name: doc-updater
-description: コード変更、API変更、新機能追加時にドキュメントを自動更新します。公開APIやインターフェースの変更、新クラス・関数・モジュールの追加、アーキテクチャの重要な変更、ユーザーからの明示的なドキュメント更新依頼時に起動します。プロジェクトのドキュメント標準に準拠した更新を提案します。
-allowed-tools:
-  - Read
-  - Edit
-  - Write
-  - Glob
-  - Grep
-  - Bash
+description: Detect changes that require documentation updates and suggest/execute updates. Use when code changes may impact documentation, during pre-PR creation checklist, or when explicitly requested.
 ---
 
-# ドキュメント更新スキル
+# doc-updater
 
-このスキルは、コードベースの変更に応じてプロジェクトのドキュメントを自動的に更新・同期します。
+Detect changes that require documentation updates and suggest/execute updates.
 
-## 起動条件
+## Overview
 
-以下の状況で自動的に起動します：
+This skill prevents documentation update oversights when code changes occur. It detects API changes, configuration option additions, feature additions, etc., and suggests updates to related READMEs, API specs, configuration guides, and more.
 
-1. API/インターフェース変更: 公開クラス、関数、メソッドのシグネチャが変更された
-2. 新機能追加: 新しいクラス、モジュール、重要な機能が追加された
-3. アーキテクチャ変更: システム設計や構造に影響する変更があった
-4. 明示的な依頼: ユーザーがドキュメント更新を明示的に依頼した
-5. ドキュメントの不整合: コードとドキュメントの内容が乖離している
+## Trigger
 
-## 動作プロセス
+- When code changes may impact documentation
+- When user explicitly requests documentation updates
+- During pre-PR creation checklist execution
 
-### 1. 変更内容の分析
+## Instructions
 
-まず、以下の情報を収集します：
-- 変更されたファイルとその内容
-- 新規追加されたクラス、関数、モジュール
-- 変更されたAPIシグネチャ
-- docstringの内容
+### Step 1: Analyze Changes
 
-### 2. 影響を受けるドキュメントの特定
+Analyze changes to determine documentation impact:
 
-プロジェクトのドキュメント構成を分析し、更新が必要なファイルを特定：
-- `docs/index.md` または `README.md`: クイックスタート、概要
-- `docs/architecture.md`: アーキテクチャ設計
-- `docs/how-it-works.md`: 動作原理
-- 機能固有のドキュメント: 各機能の詳細説明
-- 新規ページの必要性判断
-
-### 3. ドキュメント更新案の作成
-
-ドキュメント作成ガイドラインは **`.claude/docs.md`** を参照してください。
-
-重要なポイント：
-- プロジェクトで使用するマークアップ構文を使用
-- 内部表記を避ける（Phase/Milestone/Article表記等）
-- 保証表現を避ける（「完全サポート」等）
-- 感嘆符を使用しない
-- プロフェッショナルで簡潔な技術文書として記述
-
-### 4. ユーザーへの確認
-
-更新内容を提示し、以下を確認：
-- 変更の妥当性
-- 追加すべき情報の有無
-- ドキュメント構成の適切性
-
-### 5. 更新の実行
-
-承認後、以下を実行：
-- ドキュメントファイルの更新
-- 必要に応じて新規ページの作成
-- インデックスファイルへの追加（新規ページの場合）
-
-### 6. ビルド検証
-
-最後にドキュメントビルドでエラーがないことを確認します。
-
-プロジェクトで使用しているドキュメンテーションシステムに応じて：
 ```bash
-# 例: Sphinx
-sphinx-build -M html docs docs/_build
+# Get changed files
+git diff --name-only HEAD~1
 
-# 例: MkDocs
-mkdocs build
-
-# 例: その他
-# プロジェクト固有のビルドコマンド
+# Get detailed diff
+git diff HEAD~1
 ```
 
-## 使用例
+### Step 2: Identify Documentation Impact
 
-### 例1: 新しいクラスを追加
+Detect the following patterns:
 
-**変更内容**:
+| Change Type | Documentation Impact |
+|-------------|---------------------|
+| New CLI option | `--help` output, README |
+| API endpoint added/changed | API documentation |
+| Configuration option added | Config guide |
+| Environment variable added | Setup guide |
+| Feature added | Feature documentation |
+| Breaking change | Migration guide, CHANGELOG |
+
+### Step 3: Find Related Documents
+
+```bash
+# Find documentation files
+find . -name "*.md" -type f
+find . -name "README*" -type f
+find docs/ -type f 2>/dev/null
+```
+
+Identify documentation locations:
+- `README.md` - Project overview
+- `docs/` - Detailed documentation
+- `CHANGELOG.md` - Change history
+- `API.md` - API specification
+- `CONTRIBUTING.md` - Contribution guide
+
+### Step 4: Generate Update Suggestions
+
+Generate update suggestions based on change type:
+
+#### CLI Option Added
+
+```markdown
+## Documentation Update Suggestion
+
+### README.md
+Add description for `--new-option` option:
+
+```diff
++ ### New Option
++ Use `--new-option` to enable the new feature.
+```
+
+### Configuration Change
+
+```markdown
+## Documentation Update Suggestion
+
+### docs/configuration.md
+Add new configuration option:
+
+```diff
++ ## new_setting
++
++ Type: `boolean`
++ Default: `false`
++
++ Enables the new feature.
+```
+
+### Step 5: Execute Updates
+
+After user approval, update documentation:
+
+1. Edit target files
+2. Stage changes
+3. Preview changes
+
+```bash
+# Stage documentation changes
+git add README.md docs/
+```
+
+## Detection Rules
+
+### Auto-detect Patterns
+
 ```python
-class StreamingModel:
-    """ストリーミング対応のモデル"""
+# CLI options
+r"add_argument\s*\(\s*['\"]--(\w+)"
+r"Option\s*\(\s*['\"]--(\w+)"
+r"typer\.Option\("
 
-    def __init__(self, model_name: str):
-        ...
+# API endpoints
+r"@(app|router)\.(get|post|put|delete|patch)"
+r"def\s+\w+\s*\(.*request"
 
-    async def stream(self, messages: list[dict]) -> AsyncIterator[str]:
-        ...
+# Configuration
+r"Config\s*\("
+r"settings\.\w+"
+r"os\.environ\.get\("
+
+# Environment variables
+r"getenv\s*\(\s*['\"](\w+)"
+r"environ\[.(\w+).\]"
 ```
 
-**スキルの動作**:
-1. `docs/architecture.md`にストリーミングモデルのセクションを追加
-2. `docs/how-it-works.md`にストリーミングの仕組みを説明
-3. `docs/index.md`のクイックスタートにストリーミングの使用例を追加
+### Changelog Detection
 
-### 例2: APIシグネチャの変更
+Suggest CHANGELOG updates for the following changes:
 
-**変更内容**:
-```python
-# 変更前
-def __init__(self, model_name: str):
-    ...
+- Breaking changes (API signature changes)
+- New features
+- Bug fixes
+- Security patches
 
-# 変更後
-def __init__(self, model_name: str, timeout: int = 30, max_retries: int = 3):
-    ...
+## Output Format
+
+### Documentation Impact Report
+
+```
+## Documentation Update Check
+
+### Detected Changes
+| Type | Impact | Target Document |
+|------|--------|-----------------|
+| CLI option added | `--format` | README.md |
+| Environment variable added | `API_KEY` | docs/setup.md |
+| API change | `/users` endpoint | docs/api.md |
+
+### Recommended Actions
+1. Add description of new option to README.md
+2. Add environment variable setup instructions to docs/setup.md
+3. Reflect endpoint changes in docs/api.md
+
+Execute updates? [y/N]
 ```
 
-**スキルの動作**:
-1. `docs/index.md`のクイックスタート例を更新
-2. 新しいパラメータの説明を追加
-3. 既存コード例に新パラメータの使い方を追記（必要に応じて）
+### Success
 
-### 例3: アーキテクチャ変更
+```
+✅ Documentation updated
 
-**変更内容**:
-- Tool実行の仕組みをリファクタリング
-- 新しい`ToolExecutor`クラスを導入
+Updated files:
+  - README.md (+15 lines)
+  - docs/setup.md (+8 lines)
+  - CHANGELOG.md (+5 lines)
 
-**スキルの動作**:
-1. `docs/architecture.md`のアーキテクチャ図を更新
-2. 新しいコンポーネントの説明を追加
-3. 関連するドキュメントのTool実行フローを更新
+Next step:
+  git commit -m "docs: update documentation for new features"
+```
 
-## ガイドライン参照
+## Error Handling
 
-**重要**: 詳細なドキュメント作成ガイドラインは **`.claude/docs.md`** を参照してください。
+| Error | Action |
+|-------|--------|
+| No docs found | `ℹ️ No documentation files found` |
+| Doc not writable | `⚠️ No write permission for file` |
+| Pattern not found | Suggest manual verification |
 
-このファイルには以下の情報が含まれています：
-- マークアップ構文の詳細
-- トーンとスタイルのガイドライン
-- 避けるべき表現
-- コードブロックの注意点
-- ビルド検証方法
+## Integration
 
-## 注意事項
+This skill integrates with:
 
-- 自動実行の制限: このスキルは更新を提案しますが、最終的な実行前に必ずユーザーの確認を求めます
-- ビルドエラー: ドキュメントビルドでエラーが発生した場合は、原因を報告し修正案を提示します
-- 既存内容の保持: 既存のドキュメント内容を尊重し、必要最小限の変更を提案します
-- 言語対応: プロジェクトで使用している言語（日本語/英語等）に従います
+1. **code-quality-gate** - Documentation check before commit
+2. **issue-reporter** - Report documentation update progress
+3. **PR Template** - Documentation update checklist
+
+## Best Practices
+
+1. **Update with code changes** - Don't postpone documentation updates
+2. **Clarify change scope** - Specifically describe what changed
+3. **Include examples** - Add code examples and usage examples
+4. **Maintain CHANGELOG** - Record important changes in history
