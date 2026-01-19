@@ -39,6 +39,9 @@ _ORIGINAL_LOAD_TEAM_SETTINGS: Callable[..., TeamSettings] | None = None
 # Module-level state for AggregationStore patch (Issue #19)
 _ORIGINAL_SAVE_AGGREGATION: Callable[..., Coroutine[Any, Any, None]] | None = None
 
+# Module-level state for create_leader_agent patch (Issue #23)
+_ORIGINAL_CREATE_LEADER_AGENT: Callable[..., Any] | None = None
+
 
 class GroqNotPatchedError(Exception):
     """Error raised when groq: model is used without calling patch_core().
@@ -344,6 +347,9 @@ def patch_core() -> None:
     # Patch AggregationStore.save_aggregation for member tool usage warning (Issue #19)
     _patch_aggregation_store()
 
+    # Patch create_leader_agent for ClaudeCodeModel set_agent_toolsets (Issue #23)
+    _patch_leader_agent()
+
     _PATCH_APPLIED = True
 
 
@@ -443,3 +449,80 @@ def reset_aggregation_store_patch() -> None:
 
         AggregationStore.save_aggregation = _ORIGINAL_SAVE_AGGREGATION  # type: ignore[method-assign, assignment]
         _ORIGINAL_SAVE_AGGREGATION = None
+
+
+def _patch_leader_agent() -> None:
+    """Patch create_leader_agent to call set_agent_toolsets for ClaudeCodeModel.
+
+    This patch intercepts create_leader_agent to extract Tool objects from
+    the Leader agent's _function_toolset and pass them to ClaudeCodeModel's
+    set_agent_toolsets() method. This enables ClaudeCode to properly handle
+    member agent tools.
+
+    Background:
+        - claudecode-model Issue #37 added set_agent_toolsets()
+        - Pydantic AI's standard flow passes ToolDefinition (schema only)
+        - set_agent_toolsets() needs Tool objects (executable functions)
+        - Without this patch, Leader warns "did not call any member tools"
+
+    Called internally by patch_core(). Stores the original function in
+    _ORIGINAL_CREATE_LEADER_AGENT for potential restoration.
+
+    Raises:
+        ImportError: If create_leader_agent or ClaudeCodeModel cannot be imported.
+            This indicates a version incompatibility or missing dependency.
+    """
+    global _ORIGINAL_CREATE_LEADER_AGENT
+
+    from claudecode_model import ClaudeCodeModel
+
+    import mixseek.agents.leader.agent as leader_module
+    from mixseek.agents.leader.agent import create_leader_agent as original_func
+    from mixseek.agents.leader.config import TeamConfig
+
+    _ORIGINAL_CREATE_LEADER_AGENT = original_func
+
+    def patched_create_leader_agent(
+        team_config: TeamConfig,
+        member_agents: dict[str, Any],
+    ) -> Any:
+        """Patched create_leader_agent with ClaudeCodeModel toolset support.
+
+        This wrapper calls the original create_leader_agent, then extracts
+        Tool objects from the leader's _function_toolset and passes them
+        to ClaudeCodeModel.set_agent_toolsets() if applicable.
+        """
+        leader_agent = original_func(team_config, member_agents)
+
+        model = leader_agent.model
+        if isinstance(model, ClaudeCodeModel):
+            # Extract Tool objects from the leader's function toolset
+            # _function_toolset is Pydantic AI internal API (version-specific)
+            tools = list(leader_agent._function_toolset.tools.values())
+            if tools:
+                model.set_agent_toolsets(tools)  # type: ignore[arg-type]
+                logger.debug(
+                    "Applied set_agent_toolsets with %d tools for team %s",
+                    len(tools),
+                    team_config.team_id,
+                )
+
+        return leader_agent
+
+    leader_module.create_leader_agent = patched_create_leader_agent  # type: ignore[assignment]
+
+
+def reset_leader_agent_patch() -> None:
+    """Reset create_leader_agent to original (for testing only).
+
+    This function restores the original create_leader_agent function
+    that was stored before patching. It should only be used in tests
+    to ensure a clean state between test cases.
+    """
+    global _ORIGINAL_CREATE_LEADER_AGENT
+
+    if _ORIGINAL_CREATE_LEADER_AGENT is not None:
+        import mixseek.agents.leader.agent as leader_module
+
+        leader_module.create_leader_agent = _ORIGINAL_CREATE_LEADER_AGENT  # type: ignore[assignment]
+        _ORIGINAL_CREATE_LEADER_AGENT = None
