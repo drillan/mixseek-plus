@@ -4,7 +4,7 @@ This module provides a CLI entry point that wraps mixseek-core's CLI
 and automatically enables Groq and ClaudeCode provider support.
 
 Requirements:
-- GR-070: Provide mixseek command wrapping mixseek-core CLI
+- GR-070: Provide mixseek-plus/mskp command wrapping mixseek-core CLI
 - GR-071: Automatically call patch_core() on startup
 - GR-072: Groq models work without additional setup
 - GR-073: Full compatibility with mixseek-core CLI
@@ -44,7 +44,7 @@ def ensure_patched() -> None:
 def main() -> None:
     """CLI entry point.
 
-    This function is called when the user runs `mixseek` command
+    This function is called when the user runs `mixseek-plus` or `mskp` command
     after installing mixseek-plus.
     """
     ensure_patched()
