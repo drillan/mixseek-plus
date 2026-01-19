@@ -11,16 +11,19 @@ that are used by Leader/Evaluator/Judgment agents.
 from __future__ import annotations
 
 import logging
-from collections.abc import Callable, Coroutine
+from collections.abc import Callable, Coroutine, Mapping
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from pydantic_ai.agent import Agent
 from pydantic_ai.models import Model
 
 from mixseek_plus.providers import CLAUDECODE_PROVIDER_PREFIX, GROQ_PROVIDER_PREFIX
 from mixseek_plus.providers.claudecode import ClaudeCodeToolSettings
 
 if TYPE_CHECKING:
+    from mixseek.agents.leader.config import TeamConfig
+    from mixseek.agents.leader.dependencies import TeamDependencies
     from mixseek.config.schema import TeamSettings
 
 logger = logging.getLogger(__name__)
@@ -38,6 +41,16 @@ _ORIGINAL_LOAD_TEAM_SETTINGS: Callable[..., TeamSettings] | None = None
 
 # Module-level state for AggregationStore patch (Issue #19)
 _ORIGINAL_SAVE_AGGREGATION: Callable[..., Coroutine[Any, Any, None]] | None = None
+
+# Module-level state for create_leader_agent patch (Issue #23)
+# Type mirrors mixseek.agents.leader.agent.create_leader_agent signature
+_ORIGINAL_CREATE_LEADER_AGENT: (
+    Callable[
+        [TeamConfig, Mapping[str, Any]],
+        Agent[TeamDependencies, str],
+    ]
+    | None
+) = None
 
 
 class GroqNotPatchedError(Exception):
@@ -344,6 +357,18 @@ def patch_core() -> None:
     # Patch AggregationStore.save_aggregation for member tool usage warning (Issue #19)
     _patch_aggregation_store()
 
+    # Patch create_leader_agent for ClaudeCodeModel set_agent_toolsets (Issue #23)
+    # ImportError is caught here to allow partial patching if claudecode-model
+    # is not installed (optional dependency)
+    try:
+        _patch_leader_agent()
+    except ImportError as e:
+        logger.warning(
+            "Could not patch create_leader_agent: %s. "
+            "ClaudeCodeModel set_agent_toolsets integration will not be available.",
+            e,
+        )
+
     _PATCH_APPLIED = True
 
 
@@ -443,3 +468,103 @@ def reset_aggregation_store_patch() -> None:
 
         AggregationStore.save_aggregation = _ORIGINAL_SAVE_AGGREGATION  # type: ignore[method-assign, assignment]
         _ORIGINAL_SAVE_AGGREGATION = None
+
+
+def _patch_leader_agent() -> None:
+    """Patch create_leader_agent to call set_agent_toolsets for ClaudeCodeModel.
+
+    This patch intercepts create_leader_agent to extract Tool objects from
+    the Leader agent's _function_toolset and pass them to ClaudeCodeModel's
+    set_agent_toolsets() method. This enables ClaudeCode to properly handle
+    member agent tools.
+
+    Background:
+        - claudecode-model Issue #37 added set_agent_toolsets()
+        - Pydantic AI's standard flow passes ToolDefinition (schema only)
+        - set_agent_toolsets() needs Tool objects (executable functions)
+        - Without this patch, Leader warns "did not call any member tools"
+
+    Called internally by patch_core(). Stores the original function in
+    _ORIGINAL_CREATE_LEADER_AGENT for potential restoration.
+
+    Raises:
+        ImportError: If create_leader_agent or ClaudeCodeModel cannot be imported.
+            This indicates a version incompatibility or missing dependency.
+    """
+    global _ORIGINAL_CREATE_LEADER_AGENT
+
+    from claudecode_model import ClaudeCodeModel
+
+    import mixseek.agents.leader.agent as leader_module
+    from mixseek.agents.leader.agent import create_leader_agent as original_func
+
+    _ORIGINAL_CREATE_LEADER_AGENT = original_func
+
+    def patched_create_leader_agent(
+        team_config: TeamConfig,
+        member_agents: Mapping[str, Any],
+    ) -> Agent[TeamDependencies, str]:
+        """Patched create_leader_agent with ClaudeCodeModel toolset support.
+
+        This wrapper calls the original create_leader_agent, then extracts
+        Tool objects from the leader's _function_toolset and passes them
+        to ClaudeCodeModel.set_agent_toolsets() if applicable.
+        """
+        leader_agent = original_func(team_config, member_agents)
+
+        model = leader_agent.model
+        if isinstance(model, ClaudeCodeModel):
+            # Extract Tool objects from the leader's function toolset
+            # _function_toolset is Pydantic AI internal API (version-specific)
+            # Use try-except to handle potential API changes gracefully
+            try:
+                toolset = getattr(leader_agent, "_function_toolset", None)
+                if toolset is None:
+                    logger.warning(
+                        "Could not access _function_toolset on Leader agent (team=%s). "
+                        "Pydantic AI internal API may have changed.",
+                        team_config.team_id,
+                    )
+                    return leader_agent
+                tools = list(toolset.tools.values())
+            except AttributeError as e:
+                logger.warning(
+                    "Pydantic AI internal API (_function_toolset) not found: %s",
+                    e,
+                )
+                return leader_agent
+
+            if tools:
+                # Note: tools are pydantic_ai.tools.Tool but set_agent_toolsets expects
+                # claudecode_model specific type. Compatible at runtime.
+                model.set_agent_toolsets(tools)  # type: ignore[arg-type]
+                logger.debug(
+                    "Applied set_agent_toolsets with %d tools for team %s",
+                    len(tools),
+                    team_config.team_id,
+                )
+            else:
+                logger.debug(
+                    "No tools found in Leader's _function_toolset for team %s",
+                    team_config.team_id,
+                )
+
+        return leader_agent
+
+    leader_module.create_leader_agent = patched_create_leader_agent  # type: ignore[assignment]
+
+
+def reset_leader_agent_patch() -> None:
+    """Reset create_leader_agent to original (for testing only).
+
+    This function restores the original create_leader_agent function
+    that was stored before patching. It should only be used in tests
+    to ensure a clean state between test cases.
+    """
+    global _ORIGINAL_CREATE_LEADER_AGENT
+
+    if _ORIGINAL_CREATE_LEADER_AGENT is not None:
+        import mixseek.agents.leader.agent as leader_module
+
+        leader_module.create_leader_agent = _ORIGINAL_CREATE_LEADER_AGENT  # type: ignore[assignment]
+        _ORIGINAL_CREATE_LEADER_AGENT = None

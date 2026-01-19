@@ -622,3 +622,335 @@ agent_class = "PlainAgent"
         # Final cleanup - restore original
         ConfigurationManager.load_team_settings = original_func  # type: ignore[method-assign]
         core_patch._ORIGINAL_LOAD_TEAM_SETTINGS = None
+
+
+class TestLeaderAgentPatch:
+    """Tests for create_leader_agent patching (Issue #23).
+
+    These tests verify that the Leader agent's _function_toolset
+    is properly passed to ClaudeCodeModel.set_agent_toolsets().
+    """
+
+    def test_patch_leader_agent_exists(self) -> None:
+        """_patch_leader_agent function should exist."""
+        from mixseek_plus.core_patch import _patch_leader_agent
+
+        assert callable(_patch_leader_agent)
+
+    def test_reset_leader_agent_patch_exists(self) -> None:
+        """reset_leader_agent_patch function should exist."""
+        from mixseek_plus.core_patch import reset_leader_agent_patch
+
+        assert callable(reset_leader_agent_patch)
+
+    def test_patch_leader_agent_calls_set_agent_toolsets(self) -> None:
+        """_patch_leader_agent should call set_agent_toolsets for ClaudeCodeModel."""
+        from unittest.mock import MagicMock, patch as mock_patch
+
+        from claudecode_model import ClaudeCodeModel
+
+        from mixseek_plus import core_patch
+        from mixseek_plus.core_patch import (
+            _patch_leader_agent,
+            reset_leader_agent_patch,
+        )
+
+        # Reset patch state
+        core_patch._ORIGINAL_CREATE_LEADER_AGENT = None
+
+        # Create mock tools
+        mock_tool1 = MagicMock(name="tool1")
+        mock_tool2 = MagicMock(name="tool2")
+        mock_tools = [mock_tool1, mock_tool2]
+
+        # Create mock ClaudeCodeModel - must be actual instance for isinstance check
+        mock_claudecode_model = MagicMock(spec=ClaudeCodeModel)
+        mock_claudecode_model.set_agent_toolsets = MagicMock()
+
+        # Create mock leader agent with mock model
+        mock_leader_agent = MagicMock()
+        mock_leader_agent.model = mock_claudecode_model
+        mock_leader_agent._function_toolset = MagicMock()
+        mock_leader_agent._function_toolset.tools = {
+            "tool1": mock_tool1,
+            "tool2": mock_tool2,
+        }
+
+        # Create mock team_config
+        mock_team_config = MagicMock()
+        mock_team_config.team_id = "test-team"
+
+        # Mock original function to return our mock agent
+        mock_original_func = MagicMock(return_value=mock_leader_agent)
+
+        # Apply patch
+        with mock_patch(
+            "mixseek.agents.leader.agent.create_leader_agent",
+            mock_original_func,
+        ):
+            _patch_leader_agent()
+
+            # Get patched function from module
+            import mixseek.agents.leader.agent as leader_module
+
+            patched_func = leader_module.create_leader_agent
+
+            # Call patched function
+            result = patched_func(mock_team_config, {})
+
+            # Verify set_agent_toolsets was called with the tools
+            mock_claudecode_model.set_agent_toolsets.assert_called_once_with(mock_tools)
+            assert result == mock_leader_agent
+
+        # Cleanup
+        reset_leader_agent_patch()
+
+    def test_patch_leader_agent_does_not_call_set_agent_toolsets_for_non_claudecode(
+        self,
+    ) -> None:
+        """_patch_leader_agent should NOT call set_agent_toolsets for non-ClaudeCodeModel."""
+        from unittest.mock import MagicMock, patch as mock_patch
+
+        from pydantic_ai.models.groq import GroqModel
+
+        from mixseek_plus import core_patch
+        from mixseek_plus.core_patch import (
+            _patch_leader_agent,
+            reset_leader_agent_patch,
+        )
+
+        # Reset patch state
+        core_patch._ORIGINAL_CREATE_LEADER_AGENT = None
+
+        # Create mock non-ClaudeCode model (Groq)
+        mock_groq_model = MagicMock(spec=GroqModel)
+        mock_groq_model.set_agent_toolsets = MagicMock()
+
+        # Create mock leader agent
+        mock_leader_agent = MagicMock()
+        mock_leader_agent.model = mock_groq_model
+
+        mock_team_config = MagicMock()
+        mock_team_config.team_id = "test-team"
+
+        mock_original_func = MagicMock(return_value=mock_leader_agent)
+
+        with mock_patch(
+            "mixseek.agents.leader.agent.create_leader_agent",
+            mock_original_func,
+        ):
+            _patch_leader_agent()
+
+            import mixseek.agents.leader.agent as leader_module
+
+            patched_func = leader_module.create_leader_agent
+
+            result = patched_func(mock_team_config, {})
+
+            # Verify set_agent_toolsets was NOT called
+            mock_groq_model.set_agent_toolsets.assert_not_called()
+            assert result == mock_leader_agent
+
+        reset_leader_agent_patch()
+
+    def test_patch_leader_agent_does_not_call_set_agent_toolsets_with_empty_tools(
+        self,
+    ) -> None:
+        """_patch_leader_agent should NOT call set_agent_toolsets when tools is empty."""
+        from unittest.mock import MagicMock, patch as mock_patch
+
+        from claudecode_model import ClaudeCodeModel
+
+        from mixseek_plus import core_patch
+        from mixseek_plus.core_patch import (
+            _patch_leader_agent,
+            reset_leader_agent_patch,
+        )
+
+        core_patch._ORIGINAL_CREATE_LEADER_AGENT = None
+
+        mock_claudecode_model = MagicMock(spec=ClaudeCodeModel)
+        mock_claudecode_model.set_agent_toolsets = MagicMock()
+
+        mock_leader_agent = MagicMock()
+        mock_leader_agent.model = mock_claudecode_model
+        mock_leader_agent._function_toolset = MagicMock()
+        mock_leader_agent._function_toolset.tools = {}  # Empty tools
+
+        mock_team_config = MagicMock()
+        mock_team_config.team_id = "test-team"
+
+        mock_original_func = MagicMock(return_value=mock_leader_agent)
+
+        with mock_patch(
+            "mixseek.agents.leader.agent.create_leader_agent",
+            mock_original_func,
+        ):
+            _patch_leader_agent()
+
+            import mixseek.agents.leader.agent as leader_module
+
+            patched_func = leader_module.create_leader_agent
+
+            result = patched_func(mock_team_config, {})
+
+            # Verify set_agent_toolsets was NOT called when tools empty
+            mock_claudecode_model.set_agent_toolsets.assert_not_called()
+            assert result == mock_leader_agent
+
+        reset_leader_agent_patch()
+
+    def test_patch_leader_agent_handles_function_toolset_access_error(
+        self,
+    ) -> None:
+        """_patch_leader_agent should handle _function_toolset access errors gracefully."""
+        from unittest.mock import MagicMock, PropertyMock, patch as mock_patch
+
+        from claudecode_model import ClaudeCodeModel
+
+        from mixseek_plus import core_patch
+        from mixseek_plus.core_patch import (
+            _patch_leader_agent,
+            reset_leader_agent_patch,
+        )
+
+        core_patch._ORIGINAL_CREATE_LEADER_AGENT = None
+
+        mock_claudecode_model = MagicMock(spec=ClaudeCodeModel)
+        mock_claudecode_model.set_agent_toolsets = MagicMock()
+
+        mock_leader_agent = MagicMock()
+        mock_leader_agent.model = mock_claudecode_model
+        # Make _function_toolset.tools raise AttributeError
+        type(mock_leader_agent)._function_toolset = PropertyMock(
+            side_effect=AttributeError("_function_toolset not found")
+        )
+
+        mock_team_config = MagicMock()
+        mock_team_config.team_id = "test-team"
+
+        mock_original_func = MagicMock(return_value=mock_leader_agent)
+
+        with mock_patch(
+            "mixseek.agents.leader.agent.create_leader_agent",
+            mock_original_func,
+        ):
+            _patch_leader_agent()
+
+            import mixseek.agents.leader.agent as leader_module
+
+            patched_func = leader_module.create_leader_agent
+
+            # Should not raise, returns leader_agent
+            result = patched_func(mock_team_config, {})
+
+            # Verify set_agent_toolsets was NOT called due to error
+            mock_claudecode_model.set_agent_toolsets.assert_not_called()
+            assert result == mock_leader_agent
+
+        reset_leader_agent_patch()
+
+    def test_patch_leader_agent_handles_none_function_toolset(
+        self,
+    ) -> None:
+        """_patch_leader_agent should handle None _function_toolset gracefully."""
+        from unittest.mock import MagicMock, patch as mock_patch
+
+        from claudecode_model import ClaudeCodeModel
+
+        from mixseek_plus import core_patch
+        from mixseek_plus.core_patch import (
+            _patch_leader_agent,
+            reset_leader_agent_patch,
+        )
+
+        core_patch._ORIGINAL_CREATE_LEADER_AGENT = None
+
+        mock_claudecode_model = MagicMock(spec=ClaudeCodeModel)
+        mock_claudecode_model.set_agent_toolsets = MagicMock()
+
+        # Create mock without _function_toolset attribute
+        mock_leader_agent = MagicMock(spec=["model"])  # No _function_toolset
+        mock_leader_agent.model = mock_claudecode_model
+
+        mock_team_config = MagicMock()
+        mock_team_config.team_id = "test-team"
+
+        mock_original_func = MagicMock(return_value=mock_leader_agent)
+
+        with mock_patch(
+            "mixseek.agents.leader.agent.create_leader_agent",
+            mock_original_func,
+        ):
+            _patch_leader_agent()
+
+            import mixseek.agents.leader.agent as leader_module
+
+            patched_func = leader_module.create_leader_agent
+
+            # Should not raise, returns leader_agent
+            result = patched_func(mock_team_config, {})
+
+            # Verify set_agent_toolsets was NOT called
+            mock_claudecode_model.set_agent_toolsets.assert_not_called()
+            assert result == mock_leader_agent
+
+        reset_leader_agent_patch()
+
+    def test_patch_leader_agent_skips_non_claudecode(self) -> None:
+        """_patch_leader_agent should skip non-ClaudeCodeModel models."""
+
+        from mixseek_plus import core_patch
+        from mixseek_plus.core_patch import (
+            _patch_leader_agent,
+            reset_leader_agent_patch,
+        )
+
+        # Reset patch state
+        core_patch._ORIGINAL_CREATE_LEADER_AGENT = None
+
+        # Apply patch
+        _patch_leader_agent()
+
+        # Verify patch was applied
+        assert core_patch._ORIGINAL_CREATE_LEADER_AGENT is not None
+
+        # Cleanup
+        reset_leader_agent_patch()
+
+    def test_reset_leader_agent_patch_restores_original(self) -> None:
+        """reset_leader_agent_patch should restore the original function."""
+        from mixseek_plus import core_patch
+        from mixseek_plus.core_patch import (
+            _patch_leader_agent,
+            reset_leader_agent_patch,
+        )
+
+        # Reset patch state
+        core_patch._ORIGINAL_CREATE_LEADER_AGENT = None
+
+        # Apply patch
+        _patch_leader_agent()
+
+        # Verify patch was applied
+        assert core_patch._ORIGINAL_CREATE_LEADER_AGENT is not None
+
+        # Reset
+        reset_leader_agent_patch()
+
+        # Verify reset
+        assert core_patch._ORIGINAL_CREATE_LEADER_AGENT is None
+
+    def test_reset_leader_agent_patch_does_nothing_when_not_patched(self) -> None:
+        """reset_leader_agent_patch should do nothing when not patched."""
+        from mixseek_plus import core_patch
+        from mixseek_plus.core_patch import reset_leader_agent_patch
+
+        # Ensure not patched
+        core_patch._ORIGINAL_CREATE_LEADER_AGENT = None
+
+        # Should not raise
+        reset_leader_agent_patch()
+
+        # Should still be None
+        assert core_patch._ORIGINAL_CREATE_LEADER_AGENT is None
