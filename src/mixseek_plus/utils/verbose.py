@@ -31,6 +31,21 @@ def is_verbose_mode() -> bool:
 _VERBOSE_LOGGING_CONFIGURED = False
 
 
+def _configure_member_agents_logging() -> None:
+    """Configure member_agents logger for DEBUG level (internal common function).
+
+    Sets the mixseek.member_agents logger and its file handlers to DEBUG level.
+    This is the shared implementation used by both ensure_verbose_logging_configured()
+    and configure_verbose_logging_for_mode().
+    """
+    member_agents_logger = logging.getLogger("mixseek.member_agents")
+    member_agents_logger.setLevel(logging.DEBUG)
+
+    for handler in member_agents_logger.handlers:
+        if hasattr(handler, "baseFilename"):  # FileHandler
+            handler.setLevel(logging.DEBUG)
+
+
 def ensure_verbose_logging_configured() -> None:
     """Ensure verbose logging is configured for member_agents logger.
 
@@ -50,14 +65,7 @@ def ensure_verbose_logging_configured() -> None:
     if not is_verbose_mode():
         return
 
-    # Configure logging level for member_agents to show DEBUG messages
-    member_agents_logger = logging.getLogger("mixseek.member_agents")
-    member_agents_logger.setLevel(logging.DEBUG)
-
-    # Also set file handler level to DEBUG if it exists
-    for handler in member_agents_logger.handlers:
-        if hasattr(handler, "baseFilename"):  # FileHandler
-            handler.setLevel(logging.DEBUG)
+    _configure_member_agents_logging()
 
     _VERBOSE_LOGGING_CONFIGURED = True
     logger.debug("Verbose logging configured for member_agents (lazy init)")
@@ -76,14 +84,7 @@ def configure_verbose_logging_for_mode() -> None:
     if not is_verbose_mode():
         return
 
-    # Configure logging level for member_agents to show DEBUG messages
-    member_agents_logger = logging.getLogger("mixseek.member_agents")
-    member_agents_logger.setLevel(logging.DEBUG)
-
-    # Also set file handler level to DEBUG if it exists
-    for handler in member_agents_logger.handlers:
-        if hasattr(handler, "baseFilename"):  # FileHandler
-            handler.setLevel(logging.DEBUG)
+    _configure_member_agents_logging()
 
     logger.debug("Verbose logging configured for member_agents (MIXSEEK_VERBOSE=1)")
 

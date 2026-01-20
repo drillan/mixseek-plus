@@ -22,6 +22,7 @@ from pydantic_ai.settings import ModelSettings
 from mixseek.agents.member.base import BaseMemberAgent
 from mixseek.models.member_agent import MemberAgentConfig, MemberAgentResult
 
+from mixseek_plus.agents.mixins.execution import PydanticAgentExecutorMixin
 from mixseek_plus.errors import (
     ConversionError,
     FetchError,
@@ -29,10 +30,7 @@ from mixseek_plus.errors import (
     PlaywrightNotInstalledError,
 )
 from mixseek_plus.model_factory import create_model
-from mixseek_plus.types import (
-    PlaywrightAgentMetadata,
-    UsageInfo,
-)
+from mixseek_plus.types import PlaywrightAgentMetadata
 
 if TYPE_CHECKING:
     from playwright.async_api import Browser, Page, Playwright, Route
@@ -160,7 +158,7 @@ class FetchResult:
         return cls(content="", url=url, status="error", error=error, attempts=attempts)
 
 
-class BasePlaywrightAgent(BaseMemberAgent):
+class BasePlaywrightAgent(BaseMemberAgent, PydanticAgentExecutorMixin):
     """Base class for Playwright-based Member Agents.
 
     Provides common functionality:
@@ -169,6 +167,7 @@ class BasePlaywrightAgent(BaseMemberAgent):
     - HTML to Markdown conversion using MarkItDown
     - Retry logic with exponential backoff
     - Resource blocking
+    - Common execute() flow with error handling (via PydanticAgentExecutorMixin)
 
     Subclasses must implement:
     - _get_agent(): Return the Pydantic AI agent instance
@@ -579,6 +578,33 @@ class BasePlaywrightAgent(BaseMemberAgent):
         """
         ...
 
+    def _build_agent_metadata(
+        self, context: dict[str, object] | None
+    ) -> dict[str, object]:
+        """Build Playwright-specific metadata for results.
+
+        Args:
+            context: Optional context information
+
+        Returns:
+            Metadata dictionary for the result
+        """
+        metadata: PlaywrightAgentMetadata = PlaywrightAgentMetadata(
+            model_id=self.config.model,
+            temperature=self.config.temperature,
+            max_tokens=self.config.max_tokens,
+            playwright_headless=self._playwright_config.headless,
+        )
+        if context:
+            # Context values are compatible with the allowed types
+            context_dict: dict[str, str | int | float | bool | None] = {}
+            for k, v in context.items():
+                if isinstance(v, str | int | float | bool) or v is None:
+                    context_dict[k] = v
+            metadata["context"] = context_dict
+
+        return cast(dict[str, object], metadata)
+
     async def execute(
         self,
         task: str,
@@ -586,6 +612,8 @@ class BasePlaywrightAgent(BaseMemberAgent):
         **kwargs: object,
     ) -> MemberAgentResult:
         """Execute task with Playwright agent.
+
+        Delegates to PydanticAgentExecutorMixin._execute_pydantic_agent().
 
         Args:
             task: User task or prompt to execute
@@ -595,91 +623,7 @@ class BasePlaywrightAgent(BaseMemberAgent):
         Returns:
             MemberAgentResult with execution outcome
         """
-        start_time = time.time()
-
-        # Log execution start
-        execution_id = self.logger.log_execution_start(
-            agent_name=self.agent_name,
-            agent_type=self.agent_type,
-            task=task,
-            model_id=self.config.model,
-            context=context,
-            **kwargs,
-        )
-
-        # Validate input
-        if not task.strip():
-            return MemberAgentResult.error(
-                error_message="Task cannot be empty or contain only whitespace",
-                agent_name=self.agent_name,
-                agent_type=self.agent_type,
-                error_code="EMPTY_TASK",
-                execution_time_ms=int((time.time() - start_time) * 1000),
-            )
-
-        try:
-            # Create dependencies (implemented by subclass)
-            deps = self._create_deps()
-
-            # Execute with Pydantic AI agent
-            result = await self._get_agent().run(task, deps=deps, **kwargs)  # type: ignore[call-overload]
-
-            # Capture complete message history
-            all_messages = result.all_messages()
-
-            execution_time_ms = int((time.time() - start_time) * 1000)
-
-            # Extract usage information if available
-            usage_info: UsageInfo = {}
-            if hasattr(result, "usage"):
-                usage = result.usage()
-                usage_info = UsageInfo(
-                    total_tokens=getattr(usage, "total_tokens", None),
-                    prompt_tokens=getattr(usage, "prompt_tokens", None),
-                    completion_tokens=getattr(usage, "completion_tokens", None),
-                    requests=getattr(usage, "requests", None),
-                )
-
-            # Build metadata
-            metadata: PlaywrightAgentMetadata = PlaywrightAgentMetadata(
-                model_id=self.config.model,
-                temperature=self.config.temperature,
-                max_tokens=self.config.max_tokens,
-                playwright_headless=self._playwright_config.headless,
-            )
-            if context:
-                # Context values are compatible with the allowed types
-                context_dict: dict[str, str | int | float | bool | None] = {}
-                for k, v in context.items():
-                    if isinstance(v, str | int | float | bool) or v is None:
-                        context_dict[k] = v
-                metadata["context"] = context_dict
-
-            # Cast TypedDicts to dict[str, object] for API compatibility
-            usage_dict = cast(dict[str, object], usage_info) if usage_info else None
-            metadata_dict = cast(dict[str, object], metadata)
-
-            result_obj = MemberAgentResult.success(
-                content=str(result.output),
-                agent_name=self.agent_name,
-                agent_type=self.agent_type,
-                execution_time_ms=execution_time_ms,
-                usage_info=usage_dict,
-                metadata=metadata_dict,
-                all_messages=all_messages,
-            )
-
-            # Log completion
-            self.logger.log_execution_complete(
-                execution_id=execution_id, result=result_obj, usage_info=usage_dict
-            )
-
-            return result_obj
-
-        except Exception as e:
-            return self._handle_execution_error(
-                e, task, kwargs, execution_id, start_time
-            )
+        return await self._execute_pydantic_agent(task, context, **kwargs)
 
     def _handle_execution_error(
         self,
