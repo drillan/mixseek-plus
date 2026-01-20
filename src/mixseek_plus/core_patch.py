@@ -364,9 +364,20 @@ def _patch_configuration_manager() -> None:
                 # PresetError indicates a configuration issue that should be surfaced
                 # (e.g., missing preset file, invalid preset name, invalid TOML syntax)
                 raise
+            except (KeyError, TypeError, ValueError) as e:
+                # Configuration structure issues - log with details for debugging
+                logger.warning(
+                    "leader.tool_settings の構造に問題があります: %s",
+                    e,
+                    exc_info=True,
+                )
             except Exception as e:
-                # Log unexpected errors but don't fail the configuration loading
-                logger.warning("leader.tool_settings の自動適用に失敗しました: %s", e)
+                # Unexpected errors - log at error level with full traceback
+                logger.error(
+                    "leader.tool_settings の自動適用で予期しないエラーが発生しました: %s",
+                    e,
+                    exc_info=True,
+                )
         else:
             logger.debug(
                 "team_settings.leader が存在しません。tool_settings の適用をスキップします。"

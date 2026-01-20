@@ -166,9 +166,18 @@ class PlaywrightMarkdownFetchAgent(BasePlaywrightAgent):
                                 set(self._model._allowed_tools) | set(mcp_tool_names)
                             )
         except ImportError as e:
-            # Only suppress if claudecode_model itself is missing
-            if "claudecode_model" not in str(e):
-                logger.warning("ClaudeCode model import partially failed: %s", e)
+            # Only suppress if claudecode_model package itself is missing
+            # Use ImportError.name attribute for reliable module detection
+            missing_module = getattr(e, "name", None)
+            if missing_module is None or not missing_module.startswith(
+                "claudecode_model"
+            ):
+                # Log unexpected import errors with full traceback for debugging
+                logger.error(
+                    "ClaudeCode model import failed unexpectedly: %s",
+                    e,
+                    exc_info=True,
+                )
 
     def _wrap_tool_for_mcp(self, tool: ToolLike) -> ToolLike:
         """Wrap a pydantic-ai tool to inject PlaywrightDeps context.

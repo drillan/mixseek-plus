@@ -30,7 +30,6 @@ from mixseek_plus.errors import (
 )
 from mixseek_plus.model_factory import create_model
 from mixseek_plus.types import (
-    ExecutionContext,
     PlaywrightAgentMetadata,
     UsageInfo,
 )
@@ -244,9 +243,35 @@ class BasePlaywrightAgent(BaseMemberAgent):
             except Exception as e:
                 # Clean up playwright instance on browser launch failure
                 await playwright_instance.stop()
+
+                # Provide context-specific guidance based on error type
+                error_str = str(e).lower()
+                if "executable doesn't exist" in error_str or "not found" in error_str:
+                    guidance = (
+                        "Ensure Chromium is installed: playwright install chromium"
+                    )
+                elif "permission" in error_str:
+                    guidance = "Check file permissions for the browser executable"
+                elif "memory" in error_str or "resource" in error_str:
+                    guidance = (
+                        "Insufficient system resources - try closing other applications"
+                    )
+                elif (
+                    "display" in error_str
+                    or "x11" in error_str
+                    or "wayland" in error_str
+                ):
+                    guidance = (
+                        "For headless mode, set headless=True in playwright config"
+                    )
+                else:
+                    guidance = (
+                        "Ensure Chromium is installed: playwright install chromium. "
+                        "If installed, check system resources and permissions"
+                    )
+
                 raise FetchError(
-                    message=f"Failed to launch browser: {e}. "
-                    "Ensure Chromium is installed: playwright install chromium",
+                    message=f"Failed to launch browser: {e}. {guidance}",
                     url="",
                     cause=e,
                 ) from e
@@ -689,15 +714,15 @@ class BasePlaywrightAgent(BaseMemberAgent):
         elif isinstance(error, PlaywrightNotInstalledError):
             error_code = "PLAYWRIGHT_NOT_INSTALLED"
 
-        error_context: ExecutionContext = ExecutionContext(
-            task=task,
-            kwargs=kwargs,
-            error_type=type(error).__name__,
-        )
+        error_context: dict[str, object] = {
+            "task": task,
+            "kwargs": kwargs,
+            "error_type": type(error).__name__,
+        }
         self.logger.log_error(
             execution_id=execution_id,
             error=error,
-            context=error_context,  # type: ignore[arg-type]
+            context=error_context,
         )
 
         result_obj = MemberAgentResult.error(
