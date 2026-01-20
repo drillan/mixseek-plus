@@ -30,6 +30,7 @@ from mixseek_plus.providers.claudecode import ClaudeCodeToolSettings
 from mixseek_plus.utils.verbose import (
     MockRunContext,
     ToolLike,
+    ToolStatus,
     configure_verbose_logging_for_mode,
     ensure_verbose_logging_configured,
     log_verbose_tool_done,
@@ -749,7 +750,7 @@ def _wrap_tool_function_for_mcp(
         log_verbose_tool_start(tool_name, dict(kwargs))
 
         start_time = time.perf_counter()
-        status = "success"
+        status: ToolStatus = "success"
         try:
             result = await original_func(mock_ctx, **kwargs)
             return result
@@ -760,7 +761,11 @@ def _wrap_tool_function_for_mcp(
             execution_time_ms = int((time.perf_counter() - start_time) * 1000)
 
             # Log tool completion via unified verbose helper
-            log_verbose_tool_done(tool_name, status, execution_time_ms)
+            # (wrapped to prevent masking original exceptions)
+            try:
+                log_verbose_tool_done(tool_name, status, execution_time_ms)
+            except Exception as log_error:
+                logger.debug("Failed to log tool completion: %s", log_error)
 
             # Log tool invocation via MemberAgentLogger if logger is available on deps
             deps_logger = getattr(deps, "logger", None)

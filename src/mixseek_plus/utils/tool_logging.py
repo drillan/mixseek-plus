@@ -6,7 +6,7 @@ from pydantic-ai message history.
 
 from __future__ import annotations
 
-from typing import Literal, TypedDict
+from typing import TypedDict
 
 from pydantic_ai.messages import ModelMessage, ToolCallPart, ToolReturnPart
 
@@ -16,6 +16,7 @@ from mixseek_plus.utils.constants import (
     RESULT_SUMMARY_DEFAULT_MAX_LENGTH,
     TRUNCATION_SUFFIX_LENGTH,
 )
+from mixseek_plus.utils.verbose import ToolStatus
 
 
 class ExtractedToolCall(TypedDict):
@@ -24,7 +25,7 @@ class ExtractedToolCall(TypedDict):
     tool_name: str
     args_summary: str
     tool_call_id: str | None
-    status: Literal["success", "unknown"]
+    status: ToolStatus
     result_summary: str | None
 
 

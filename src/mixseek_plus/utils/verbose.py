@@ -11,7 +11,7 @@ import logging
 import os
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
-from typing import Protocol
+from typing import Literal, Protocol
 
 from mixseek_plus.utils.constants import (
     PARAM_VALUE_MAX_LENGTH,
@@ -19,6 +19,9 @@ from mixseek_plus.utils.constants import (
     RESULT_PREVIEW_MAX_LENGTH,
     TRUNCATION_SUFFIX_LENGTH,
 )
+
+# Status type for tool execution results
+ToolStatus = Literal["success", "error", "unknown"]
 
 logger = logging.getLogger(__name__)
 
@@ -181,7 +184,7 @@ def log_verbose_tool_start(tool_name: str, params: dict[str, object]) -> None:
 
 def log_verbose_tool_done(
     tool_name: str,
-    status: str,
+    status: ToolStatus,
     execution_time_ms: int,
     result_preview: str | None = None,
 ) -> None:
@@ -192,7 +195,7 @@ def log_verbose_tool_done(
 
     Args:
         tool_name: Name of the tool that completed.
-        status: Completion status ("success", "error", etc.).
+        status: Completion status ("success", "error", or "unknown").
         execution_time_ms: Execution time in milliseconds.
         result_preview: Optional preview of the result content.
 

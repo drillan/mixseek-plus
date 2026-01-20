@@ -4,9 +4,9 @@ This module implements a custom Member Agent that uses Groq models
 with Web Search capability via Tavily API.
 """
 
+import logging
 import time
 from dataclasses import dataclass
-from typing import Any
 
 from httpx import HTTPStatusError
 from pydantic_ai import Agent, RunContext
@@ -17,7 +17,13 @@ from mixseek.models.member_agent import MemberAgentConfig
 from mixseek_plus.agents.base_groq_agent import BaseGroqAgent
 from mixseek_plus.errors import ModelCreationError
 from mixseek_plus.providers.tavily import validate_tavily_credentials
-from mixseek_plus.utils.verbose import log_verbose_tool_done, log_verbose_tool_start
+from mixseek_plus.utils.verbose import (
+    ToolStatus,
+    log_verbose_tool_done,
+    log_verbose_tool_start,
+)
+
+logger = logging.getLogger(__name__)
 
 
 class TavilySearchError(Exception):
@@ -126,7 +132,7 @@ class GroqWebSearchAgent(BaseGroqAgent):
             log_verbose_tool_start("web_search", {"query": query})
 
             start_time = time.perf_counter()
-            status = "success"
+            status: ToolStatus = "success"
             result_str = ""
 
             client = ctx.deps.tavily_client
@@ -179,15 +185,18 @@ class GroqWebSearchAgent(BaseGroqAgent):
                 ) from e
             finally:
                 execution_time_ms = int((time.perf_counter() - start_time) * 1000)
-                # Log tool completion in verbose mode
-                log_verbose_tool_done(
-                    "web_search",
-                    status,
-                    execution_time_ms,
-                    result_preview=result_str if result_str else None,
-                )
+                # Log tool completion in verbose mode (wrapped to prevent masking errors)
+                try:
+                    log_verbose_tool_done(
+                        "web_search",
+                        status,
+                        execution_time_ms,
+                        result_preview=result_str if result_str else None,
+                    )
+                except Exception as log_error:
+                    logger.debug("Failed to log tool completion: %s", log_error)
 
-    def _get_agent(self) -> Agent[Any, str]:
+    def _get_agent(self) -> Agent[GroqWebSearchDeps, str]:  # type: ignore[override]
         """Get the Pydantic AI agent instance.
 
         Returns:

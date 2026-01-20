@@ -86,7 +86,7 @@ class PydanticAgentExecutorMixin(ABC):
     ) -> None:
         """Extract and log tool calls from message history in verbose mode.
 
-        Uses ClaudeCodeToolCallExtractor to extract tool call info from
+        Uses PydanticAIToolCallExtractor to extract tool call info from
         pydantic-ai message history and logs via verbose helpers.
 
         Args:

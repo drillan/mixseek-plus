@@ -21,6 +21,7 @@ from mixseek_plus.agents.base_playwright_agent import (
 from mixseek_plus.utils.verbose import (
     MockRunContext,
     ToolLike,
+    ToolStatus,
     log_verbose_tool_done,
     log_verbose_tool_start,
 )
@@ -217,7 +218,7 @@ class PlaywrightMarkdownFetchAgent(BasePlaywrightAgent):
             log_verbose_tool_start(tool_name, dict(kwargs))
 
             start_time = time.perf_counter()
-            status = "success"
+            status: ToolStatus = "success"
             result_str = ""
             try:
                 result = await original_function(mock_ctx, **kwargs)
@@ -230,12 +231,16 @@ class PlaywrightMarkdownFetchAgent(BasePlaywrightAgent):
                 execution_time_ms = int((time.perf_counter() - start_time) * 1000)
 
                 # Log tool completion via unified verbose helper
-                log_verbose_tool_done(
-                    tool_name,
-                    status,
-                    execution_time_ms,
-                    result_preview=result_str if result_str else None,
-                )
+                # (wrapped to prevent masking original exceptions)
+                try:
+                    log_verbose_tool_done(
+                        tool_name,
+                        status,
+                        execution_time_ms,
+                        result_preview=result_str if result_str else None,
+                    )
+                except Exception as log_error:
+                    logger.debug("Failed to log tool completion: %s", log_error)
 
                 # Log tool invocation via MemberAgentLogger (file logging)
                 has_logger = hasattr(agent_ref, "logger")

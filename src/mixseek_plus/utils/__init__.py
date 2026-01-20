@@ -19,7 +19,7 @@ from mixseek_plus.utils.constants import (
 from mixseek_plus.utils.verbose import (
     MockRunContext,
     ToolLike,
-    _format_params_for_verbose,
+    ToolStatus,
     configure_verbose_logging_for_mode,
     ensure_verbose_logging_configured,
     is_verbose_mode,
@@ -38,7 +38,7 @@ __all__ = [
     # Verbose utilities
     "MockRunContext",
     "ToolLike",
-    "_format_params_for_verbose",
+    "ToolStatus",
     "configure_verbose_logging_for_mode",
     "ensure_verbose_logging_configured",
     "is_verbose_mode",
