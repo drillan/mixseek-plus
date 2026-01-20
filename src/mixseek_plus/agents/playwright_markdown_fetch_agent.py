@@ -6,8 +6,10 @@ and converts them to Markdown format using MarkItDown.
 
 from __future__ import annotations
 
+import logging
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
-from typing import Any
+from typing import Protocol
 
 from pydantic_ai import Agent, RunContext
 
@@ -17,6 +19,16 @@ from mixseek_plus.agents.base_playwright_agent import (
     BasePlaywrightAgent,
     FetchResult,
 )
+
+logger = logging.getLogger(__name__)
+
+
+class ToolLike(Protocol):
+    """Protocol for pydantic-ai tool objects."""
+
+    name: str
+    description: str
+    function: Callable[..., Awaitable[str]]
 
 
 @dataclass
@@ -72,7 +84,7 @@ class PlaywrightMarkdownFetchAgent(BasePlaywrightAgent):
         super().__init__(config)
         self._agent = None
 
-    def _get_agent(self) -> Agent[PlaywrightDeps, str]:
+    def _get_agent(self) -> Agent[object, str]:
         """Get or create the Pydantic AI agent instance.
 
         Returns:
@@ -110,7 +122,7 @@ class PlaywrightMarkdownFetchAgent(BasePlaywrightAgent):
             # ClaudeCodeModel requires explicit toolset registration
             self._register_toolsets_if_claudecode()
 
-        return self._agent
+        return self._agent  # type: ignore[return-value]
 
     def _register_toolsets_if_claudecode(self) -> None:
         """Register toolsets with ClaudeCodeModel if applicable.
@@ -137,7 +149,7 @@ class PlaywrightMarkdownFetchAgent(BasePlaywrightAgent):
                         wrapped_tools = [
                             self._wrap_tool_for_mcp(tool) for tool in tools
                         ]
-                        self._model.set_agent_toolsets(wrapped_tools)
+                        self._model.set_agent_toolsets(wrapped_tools)  # type: ignore[arg-type]
 
                         # Add MCP tool names to allowed_tools
                         # MCP tools are named: mcp__<server_name>__<tool_name>
@@ -153,11 +165,12 @@ class PlaywrightMarkdownFetchAgent(BasePlaywrightAgent):
                             self._model._allowed_tools = list(
                                 set(self._model._allowed_tools) | set(mcp_tool_names)
                             )
-        except ImportError:
-            # claudecode-model not installed, skip
-            pass
+        except ImportError as e:
+            # Only suppress if claudecode_model itself is missing
+            if "claudecode_model" not in str(e):
+                logger.warning("ClaudeCode model import partially failed: %s", e)
 
-    def _wrap_tool_for_mcp(self, tool: Any) -> Any:
+    def _wrap_tool_for_mcp(self, tool: ToolLike) -> ToolLike:
         """Wrap a pydantic-ai tool to inject PlaywrightDeps context.
 
         When tools are called via MCP, pydantic-ai's RunContext is not available.
@@ -169,9 +182,7 @@ class PlaywrightMarkdownFetchAgent(BasePlaywrightAgent):
         Returns:
             A new Tool object with wrapped function
         """
-        from collections.abc import Coroutine
         from dataclasses import dataclass, replace
-        from typing import Callable
 
         original_function = tool.function
         agent_ref = self
@@ -198,14 +209,14 @@ class PlaywrightMarkdownFetchAgent(BasePlaywrightAgent):
 
         # Create new tool with wrapped function
         try:
-            return replace(tool, function=wrapped_function)
+            return replace(tool, function=wrapped_function)  # type: ignore[type-var]
         except TypeError:
             # If replace doesn't work, create a simple wrapper
             class ToolWrapper:
                 def __init__(
                     self,
-                    original: Any,
-                    wrapped_func: Callable[..., Coroutine[object, object, str]],
+                    original: ToolLike,
+                    wrapped_func: Callable[..., Awaitable[str]],
                 ) -> None:
                     self._original = original
                     self.function = wrapped_func
@@ -243,7 +254,7 @@ class PlaywrightMarkdownFetchAgent(BasePlaywrightAgent):
             "After fetching, summarize or answer questions about the content."
         )
 
-    def _get_agent_type_metadata(self) -> dict[str, Any]:
+    def _get_agent_type_metadata(self) -> dict[str, object]:
         """Get agent-type specific metadata.
 
         Returns:

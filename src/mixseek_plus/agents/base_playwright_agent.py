@@ -12,7 +12,7 @@ import logging
 import time
 from abc import abstractmethod
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Literal, cast
+from typing import TYPE_CHECKING, Literal, cast
 
 from pydantic import BaseModel, Field
 from pydantic_ai import Agent
@@ -29,10 +29,14 @@ from mixseek_plus.errors import (
     PlaywrightNotInstalledError,
 )
 from mixseek_plus.model_factory import create_model
-from mixseek_plus.types import AgentMetadata, ExecutionContext, UsageInfo
+from mixseek_plus.types import (
+    ExecutionContext,
+    PlaywrightAgentMetadata,
+    UsageInfo,
+)
 
 if TYPE_CHECKING:
-    from playwright.async_api import Browser, Page, Playwright
+    from playwright.async_api import Browser, Page, Playwright, Route
 
 logger = logging.getLogger(__name__)
 
@@ -227,14 +231,28 @@ class BasePlaywrightAgent(BaseMemberAgent):
 
         Raises:
             PlaywrightNotInstalledError: If playwright is not available
+            FetchError: If browser launch fails
         """
         if self._browser is None:
             from playwright.async_api import async_playwright
 
-            self._playwright = await async_playwright().start()
-            self._browser = await self._playwright.chromium.launch(
-                headless=self._playwright_config.headless
-            )
+            playwright_instance = await async_playwright().start()
+            try:
+                browser = await playwright_instance.chromium.launch(
+                    headless=self._playwright_config.headless
+                )
+            except Exception as e:
+                # Clean up playwright instance on browser launch failure
+                await playwright_instance.stop()
+                raise FetchError(
+                    message=f"Failed to launch browser: {e}. "
+                    "Ensure Chromium is installed: playwright install chromium",
+                    url="",
+                    cause=e,
+                ) from e
+
+            self._playwright = playwright_instance
+            self._browser = browser
             logger.debug(
                 "Browser launched (headless=%s)", self._playwright_config.headless
             )
@@ -268,7 +286,7 @@ class BasePlaywrightAgent(BaseMemberAgent):
 
         blocked_types = set(self._playwright_config.block_resources)
 
-        async def block_handler(route: Any) -> None:
+        async def block_handler(route: Route) -> None:
             if route.request.resource_type in blocked_types:
                 await route.abort()
             else:
@@ -519,7 +537,7 @@ class BasePlaywrightAgent(BaseMemberAgent):
         return settings
 
     @abstractmethod
-    def _get_agent(self) -> Agent[Any, str]:
+    def _get_agent(self) -> Agent[object, str]:
         """Get the Pydantic AI agent instance.
 
         Returns:
@@ -598,18 +616,23 @@ class BasePlaywrightAgent(BaseMemberAgent):
                 )
 
             # Build metadata
-            metadata: AgentMetadata = AgentMetadata(
+            metadata: PlaywrightAgentMetadata = PlaywrightAgentMetadata(
                 model_id=self.config.model,
                 temperature=self.config.temperature,
                 max_tokens=self.config.max_tokens,
+                playwright_headless=self._playwright_config.headless,
             )
-            metadata["playwright_headless"] = self._playwright_config.headless  # type: ignore[typeddict-unknown-key]
             if context:
-                metadata["context"] = context  # type: ignore[typeddict-item]
+                # Context values are compatible with the allowed types
+                context_dict: dict[str, str | int | float | bool | None] = {}
+                for k, v in context.items():
+                    if isinstance(v, str | int | float | bool) or v is None:
+                        context_dict[k] = v
+                metadata["context"] = context_dict
 
-            # Cast TypedDicts to dict[str, Any] for API compatibility
-            usage_dict = cast(dict[str, Any], usage_info) if usage_info else None
-            metadata_dict = cast(dict[str, Any], metadata)
+            # Cast TypedDicts to dict[str, object] for API compatibility
+            usage_dict = cast(dict[str, object], usage_info) if usage_info else None
+            metadata_dict = cast(dict[str, object], metadata)
 
             result_obj = MemberAgentResult.success(
                 content=str(result.output),

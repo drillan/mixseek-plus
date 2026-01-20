@@ -32,6 +32,17 @@ class AgentMetadata(TypedDict, total=False):
     agent_type: str
 
 
+class PlaywrightAgentMetadata(AgentMetadata, total=False):
+    """Metadata specific to Playwright-based agents.
+
+    Extends AgentMetadata with Playwright-specific fields.
+    """
+
+    playwright_headless: bool
+    playwright_timeout_ms: int
+    playwright_wait_for_load_state: str
+
+
 class ExecutionContext(TypedDict, total=False):
     """Context information passed to agent execution.
 

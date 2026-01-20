@@ -1,4 +1,9 @@
-"""pytest fixtures for mixseek-plus tests."""
+"""pytest fixtures for mixseek-plus tests.
+
+IMPORTANT: The patch_core() call must happen before pytest collects any test
+modules that might import MemberAgentConfig. This is done in pytest_configure
+hook which runs before test collection.
+"""
 
 from pathlib import Path
 
@@ -71,7 +76,16 @@ def mock_openai_api_key(monkeypatch: pytest.MonkeyPatch) -> str:
 
 
 def pytest_configure(config: pytest.Config) -> None:
-    """pytest設定にカスタムマーカーを追加する."""
+    """Configure pytest: patch mixseek-core and add custom markers.
+
+    CRITICAL: patch_core() must be called here before test collection
+    to ensure groq: and claudecode: model prefixes are accepted.
+    """
+    # Apply mixseek-plus patches to mixseek-core
+    import mixseek_plus
+
+    mixseek_plus.patch_core()
+
     config.addinivalue_line(
         "markers",
         "integration: marks tests as integration tests (deselect with '-m \"not integration\"')",
