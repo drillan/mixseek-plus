@@ -5,7 +5,12 @@ mixseek-plusを使い始めるためのガイドです。
 ## インストール
 
 ```bash
+# 基本インストール
 pip install mixseek-plus
+
+# Playwright Web Fetcher機能を使用する場合
+pip install mixseek-plus[playwright]
+playwright install chromium
 ```
 
 ## 環境変数の設定
@@ -82,9 +87,13 @@ mixseek_plus.register_groq_agents()
 # ClaudeCodeエージェントタイプを登録
 mixseek_plus.register_claudecode_agents()
 
+# Playwrightエージェントタイプを登録（要: pip install mixseek-plus[playwright]）
+mixseek_plus.register_playwright_agents()
+
 # これでTOML設定で以下のタイプが使用可能
 # - groq_plain, groq_web_search（Groq）
 # - claudecode_plain（ClaudeCode）
+# - playwright_markdown_fetch（Playwright Web Fetcher）
 ```
 
 ### Leader/Evaluatorでの使用

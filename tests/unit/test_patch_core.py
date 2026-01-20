@@ -692,7 +692,7 @@ agent_class = "PlainAgent"
         assert core_patch._ORIGINAL_LOAD_TEAM_SETTINGS is not None
 
         # Final cleanup - restore original
-        ConfigurationManager.load_team_settings = original_func  # type: ignore[method-assign]
+        ConfigurationManager.load_team_settings = original_func
         core_patch._ORIGINAL_LOAD_TEAM_SETTINGS = None
 
     def test_configuration_manager_patch_resolves_preset(

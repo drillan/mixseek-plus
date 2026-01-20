@@ -1,4 +1,9 @@
-"""pytest fixtures for mixseek-plus tests."""
+"""pytest fixtures for mixseek-plus tests.
+
+IMPORTANT: The patch_core() call must happen before pytest collects any test
+modules that might import MemberAgentConfig. This is done in pytest_configure
+hook which runs before test collection.
+"""
 
 from pathlib import Path
 
@@ -71,8 +76,75 @@ def mock_openai_api_key(monkeypatch: pytest.MonkeyPatch) -> str:
 
 
 def pytest_configure(config: pytest.Config) -> None:
-    """pytest設定にカスタムマーカーを追加する."""
+    """Configure pytest: patch mixseek-core and add custom markers.
+
+    CRITICAL: patch_core() must be called here before test collection
+    to ensure groq: and claudecode: model prefixes are accepted.
+    """
+    # Apply mixseek-plus patches to mixseek-core
+    import mixseek_plus
+
+    mixseek_plus.patch_core()
+
     config.addinivalue_line(
         "markers",
         "integration: marks tests as integration tests (deselect with '-m \"not integration\"')",
     )
+    config.addinivalue_line(
+        "markers",
+        "playwright: marks tests that require playwright (deselect with '-m \"not playwright\"')",
+    )
+
+
+# Playwright fixtures
+
+
+@pytest.fixture
+def mock_playwright_config() -> dict[str, object]:
+    """Default Playwright configuration for tests.
+
+    Returns:
+        Dictionary with default Playwright settings
+    """
+    return {
+        "headless": True,
+        "timeout_ms": 30000,
+        "wait_for_load_state": "load",
+        "retry_count": 0,
+        "retry_delay_ms": 1000,
+        "block_resources": None,
+    }
+
+
+@pytest.fixture
+def mock_playwright_config_with_retries() -> dict[str, object]:
+    """Playwright configuration with retries enabled.
+
+    Returns:
+        Dictionary with Playwright settings including retries
+    """
+    return {
+        "headless": True,
+        "timeout_ms": 30000,
+        "wait_for_load_state": "load",
+        "retry_count": 3,
+        "retry_delay_ms": 500,
+        "block_resources": None,
+    }
+
+
+@pytest.fixture
+def mock_playwright_config_with_blocking() -> dict[str, object]:
+    """Playwright configuration with resource blocking.
+
+    Returns:
+        Dictionary with Playwright settings including resource blocking
+    """
+    return {
+        "headless": True,
+        "timeout_ms": 30000,
+        "wait_for_load_state": "networkidle",
+        "retry_count": 0,
+        "retry_delay_ms": 1000,
+        "block_resources": ["image", "font", "media"],
+    }

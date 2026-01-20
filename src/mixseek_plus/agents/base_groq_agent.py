@@ -18,7 +18,7 @@ from mixseek.models.member_agent import MemberAgentConfig, MemberAgentResult
 
 from mixseek_plus.errors import ModelCreationError
 from mixseek_plus.model_factory import create_model
-from mixseek_plus.types import AgentMetadata, ExecutionContext, UsageInfo
+from mixseek_plus.types import AgentMetadata, UsageInfo
 
 
 class BaseGroqAgent(BaseMemberAgent):
@@ -266,15 +266,15 @@ class BaseGroqAgent(BaseMemberAgent):
 
         # Handle IncompleteToolCall explicitly
         if isinstance(error, IncompleteToolCall):
-            error_context: ExecutionContext = ExecutionContext(
-                task=task,
-                kwargs=kwargs,  # type: ignore[typeddict-item]
-                error_type="IncompleteToolCall",
-            )
+            error_context: dict[str, object] = {
+                "task": task,
+                "kwargs": kwargs,
+                "error_type": "IncompleteToolCall",
+            }
             self.logger.log_error(
                 execution_id=execution_id,
                 error=error,
-                context=error_context,  # type: ignore[arg-type]
+                context=error_context,
             )
 
             result_obj = MemberAgentResult.error(

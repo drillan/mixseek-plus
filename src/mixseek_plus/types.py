@@ -4,7 +4,10 @@ This module provides TypedDict definitions for type-safe dictionaries
 used throughout the package.
 """
 
-from typing import TypedDict
+from typing import Literal, TypedDict
+
+# Playwright wait state literal type
+WaitForLoadState = Literal["load", "domcontentloaded", "networkidle"]
 
 
 class UsageInfo(TypedDict, total=False):
@@ -30,6 +33,17 @@ class AgentMetadata(TypedDict, total=False):
     max_tokens: int | None
     context: dict[str, str | int | float | bool | None]
     agent_type: str
+
+
+class PlaywrightAgentMetadata(AgentMetadata, total=False):
+    """Metadata specific to Playwright-based agents.
+
+    Extends AgentMetadata with Playwright-specific fields.
+    """
+
+    playwright_headless: bool
+    playwright_timeout_ms: int
+    playwright_wait_for_load_state: WaitForLoadState
 
 
 class ExecutionContext(TypedDict, total=False):

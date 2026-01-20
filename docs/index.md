@@ -4,12 +4,13 @@ mixseek-coreの拡張パッケージ。Groqモデルサポートやweb_fetch強�
 
 ## 概要
 
-mixseek-plusは、mixseek-coreのMember/Leader/Evaluatorフレームワークを拡張し、Groqプロバイダーのサポートを追加します。
+mixseek-plusは、mixseek-coreのMember/Leader/Evaluatorフレームワークを拡張し、追加プロバイダーのサポートを提供します。
 
 主な機能:
-- Model Factory: `create_model()` によるGroqモデルインスタンスの作成
-- Memberエージェント: `groq_plain`、`groq_web_search` タイプのエージェント
-- Core統合: `patch_core()` によるLeader/EvaluatorへのGroqサポート追加
+- Model Factory: `create_model()` によるGroq/ClaudeCodeモデルインスタンスの作成
+- Memberエージェント: `groq_plain`、`groq_web_search`、`claudecode_plain`、`playwright_markdown_fetch` タイプのエージェント
+- Core統合: `patch_core()` によるLeader/EvaluatorへのGroq/ClaudeCodeサポート追加
+- Playwright Web Fetcher: ボット対策サイトからもコンテンツを取得できるWebフェッチャー
 
 ## 目次
 

@@ -364,9 +364,20 @@ def _patch_configuration_manager() -> None:
                 # PresetError indicates a configuration issue that should be surfaced
                 # (e.g., missing preset file, invalid preset name, invalid TOML syntax)
                 raise
+            except (KeyError, TypeError, ValueError) as e:
+                # Configuration structure issues - log with details for debugging
+                logger.warning(
+                    "leader.tool_settings の構造に問題があります: %s",
+                    e,
+                    exc_info=True,
+                )
             except Exception as e:
-                # Log unexpected errors but don't fail the configuration loading
-                logger.warning("leader.tool_settings の自動適用に失敗しました: %s", e)
+                # Unexpected errors - log at error level with full traceback
+                logger.error(
+                    "leader.tool_settings の自動適用で予期しないエラーが発生しました: %s",
+                    e,
+                    exc_info=True,
+                )
         else:
             logger.debug(
                 "team_settings.leader が存在しません。tool_settings の適用をスキップします。"
@@ -467,6 +478,9 @@ def patch_core() -> None:
     # Patch AggregationStore.save_aggregation for member tool usage warning (Issue #19)
     _patch_aggregation_store()
 
+    # Patch MemberAgentConfig.validate_model to support groq: and claudecode: prefixes
+    _patch_member_agent_config_validator()
+
     # Patch create_leader_agent for ClaudeCodeModel set_agent_toolsets (Issue #23)
     # ImportError is caught here to allow partial patching if claudecode-model
     # is not installed (optional dependency)
@@ -508,6 +522,46 @@ def _patch_module_references(patched_func: Callable[[str], Model]) -> None:
             module = sys.modules[module_name]
             if hasattr(module, "create_authenticated_model"):
                 setattr(module, "create_authenticated_model", patched_func)
+
+
+def _patch_member_agent_config_validator() -> None:
+    """Patch MemberAgentConfig.validate_model to support groq: and claudecode: prefixes.
+
+    This patch extends the model validator in MemberAgentConfig to accept
+    groq: and claudecode: model prefixes in addition to the standard ones.
+
+    Without this patch, MemberAgentConfig will reject models like
+    'groq:llama-3.3-70b-versatile' even for custom agent types that
+    specify their own type like 'playwright_markdown_fetch'.
+
+    Called internally by patch_core().
+    """
+    from pydantic import ValidationInfo
+
+    from mixseek.models.member_agent import MemberAgentConfig
+
+    # Store the original validator
+    # Note: Pydantic field validators are compiled at class definition,
+    # so this patch may not work as expected. Using type: ignore for
+    # internal Pydantic API access.
+    original_validator = MemberAgentConfig.validate_model.__func__  # type: ignore[attr-defined]
+
+    @classmethod  # type: ignore[misc]
+    def patched_validate_model(
+        cls: type[MemberAgentConfig], v: str, info: ValidationInfo
+    ) -> str:
+        """Extended validate_model that accepts groq: and claudecode: prefixes."""
+        # Accept groq: and claudecode: prefixes
+        if v.startswith(GROQ_PROVIDER_PREFIX) or v.startswith(
+            CLAUDECODE_PROVIDER_PREFIX
+        ):
+            return v
+
+        # Fall back to original validator for other cases
+        return original_validator(cls, v, info)  # type: ignore[no-any-return]
+
+    # Replace the validator method
+    MemberAgentConfig.validate_model = patched_validate_model  # type: ignore[assignment]
 
 
 def _patch_aggregation_store() -> None:
@@ -576,7 +630,7 @@ def reset_aggregation_store_patch() -> None:
     if _ORIGINAL_SAVE_AGGREGATION is not None:
         from mixseek.storage.aggregation_store import AggregationStore
 
-        AggregationStore.save_aggregation = _ORIGINAL_SAVE_AGGREGATION  # type: ignore[method-assign, assignment]
+        AggregationStore.save_aggregation = _ORIGINAL_SAVE_AGGREGATION  # type: ignore[method-assign]
         _ORIGINAL_SAVE_AGGREGATION = None
 
 
@@ -817,7 +871,7 @@ def _patch_leader_agent() -> None:
 
         return leader_agent
 
-    leader_module.create_leader_agent = patched_create_leader_agent  # type: ignore[assignment]
+    leader_module.create_leader_agent = patched_create_leader_agent
 
     # Also patch modules that have already imported create_leader_agent directly
     # These modules hold their own reference that won't be updated by
