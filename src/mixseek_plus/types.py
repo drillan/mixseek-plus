@@ -55,3 +55,48 @@ class ExecutionContext(TypedDict, total=False):
     task: str
     kwargs: dict[str, object]
     error_type: str
+
+
+# Tavily API TypedDicts
+
+
+class TavilySearchResultItemDict(TypedDict, total=False):
+    """検索結果アイテムの辞書型."""
+
+    title: str
+    url: str
+    content: str
+    score: float
+    raw_content: str | None
+
+
+class TavilySearchResultDict(TypedDict, total=False):
+    """検索結果全体の辞書型."""
+
+    query: str
+    answer: str | None
+    results: list[TavilySearchResultItemDict]
+    images: list[str] | None
+    response_time: float
+
+
+class TavilyExtractResultItemDict(TypedDict, total=False):
+    """抽出結果アイテムの辞書型."""
+
+    url: str
+    raw_content: str
+
+
+class TavilyExtractFailedItemDict(TypedDict, total=False):
+    """抽出失敗アイテムの辞書型."""
+
+    url: str
+    error: str
+
+
+class TavilyExtractResultDict(TypedDict, total=False):
+    """抽出結果全体の辞書型."""
+
+    results: list[TavilyExtractResultItemDict]
+    failed_results: list[TavilyExtractFailedItemDict]
+    response_time: float

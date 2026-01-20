@@ -22,7 +22,7 @@ playwright install chromium
 | 変数名 | 必須 | 説明 |
 |--------|------|------|
 | `GROQ_API_KEY` | Groq使用時 | Groq APIキー |
-| `TAVILY_API_KEY` | オプション | Web検索機能を使用する場合に必要 |
+| `TAVILY_API_KEY` | Tavily使用時 | Tavily検索エージェント利用に必要 |
 
 ## クイックスタート
 
@@ -59,6 +59,51 @@ name = "web-searcher"
 type = "groq_web_search"
 model = "groq:llama-3.3-70b-versatile"
 ```
+
+### Tavily検索エージェント
+
+Tavily APIを使用したWeb検索、コンテンツ抽出、RAGコンテキスト生成が可能なエージェント。
+Groq版とClaudeCode版の2種類があります。
+
+```python
+from mixseek_plus import patch_core
+from mixseek_plus.agents import register_groq_agents, register_tavily_agents
+
+patch_core()
+register_groq_agents()
+register_tavily_agents()
+```
+
+```toml
+# team.toml
+
+# Groq版 Tavily検索エージェント
+[[members]]
+name = "tavily-researcher"
+type = "tavily_search"
+model = "groq:llama-3.3-70b-versatile"
+system_prompt = """
+リサーチアシスタントです。以下のツールを使用:
+- tavily_search: Web検索
+- tavily_extract: URL群からコンテンツ抽出
+- tavily_context: RAG用コンテキスト生成
+"""
+
+# ClaudeCode版 Tavily検索エージェント
+[[members]]
+name = "tavily-claude"
+type = "claudecode_tavily_search"
+model = "claudecode:claude-sonnet-4-5"
+system_prompt = "ClaudeCodeとTavily検索を組み合わせたリサーチャーです。"
+```
+
+#### Tavilyツール
+
+| ツール | 機能 |
+|--------|------|
+| `tavily_search` | Web検索（詳細度・結果数調整可能） |
+| `tavily_extract` | URL群からコンテンツ抽出 |
+| `tavily_context` | RAG用コンテキスト生成 |
 
 ### Playwright Webフェッチャー
 
@@ -114,6 +159,10 @@ mskp team "タスク" --config team.toml
   - `create_model("groq:...")` でGroqモデル作成
   - `groq_plain`, `groq_web_search` エージェント
   - Leader/EvaluatorへのGroq統合（`patch_core()`）
+- **Tavily検索エージェント**
+  - `tavily_search` (Groq版), `claudecode_tavily_search` (ClaudeCode版)
+  - Web検索、コンテンツ抽出、RAGコンテキスト生成
+  - 3つのツール: `tavily_search`, `tavily_extract`, `tavily_context`
 - **Playwright Webフェッチャー**
   - `playwright_markdown_fetch` エージェント
   - ボット対策サイト対応（headedモード）

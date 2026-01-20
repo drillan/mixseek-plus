@@ -46,6 +46,24 @@ def clear_groq_api_key(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 @pytest.fixture
+def mock_tavily_api_key(monkeypatch: pytest.MonkeyPatch) -> str:
+    """TAVILY_API_KEY環境変数を有効な値でモックする.
+
+    Returns:
+        モックされたAPIキーの値
+    """
+    api_key = "tvly-test_api_key_1234567890"
+    monkeypatch.setenv("TAVILY_API_KEY", api_key)
+    return api_key
+
+
+@pytest.fixture
+def clear_tavily_api_key(monkeypatch: pytest.MonkeyPatch) -> None:
+    """TAVILY_API_KEY環境変数をクリアする."""
+    monkeypatch.delenv("TAVILY_API_KEY", raising=False)
+
+
+@pytest.fixture
 def empty_groq_api_key(monkeypatch: pytest.MonkeyPatch) -> None:
     """GROQ_API_KEY環境変数を空文字に設定する."""
     monkeypatch.setenv("GROQ_API_KEY", "")

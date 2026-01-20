@@ -1,6 +1,6 @@
 """モデルファクトリー - LLMモデルインスタンスの作成."""
 
-from mixseek.agents.member.plain import create_authenticated_model
+from mixseek.agents.member.plain import create_authenticated_model  # type: ignore[attr-defined]
 from pydantic_ai.models import Model
 from pydantic_ai.models.groq import GroqModel
 

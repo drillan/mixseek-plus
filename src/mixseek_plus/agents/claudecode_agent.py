@@ -5,7 +5,6 @@ via mixseek-plus's create_claudecode_model() function.
 """
 
 from pydantic_ai import Agent
-from pydantic_ai.settings import ModelSettings
 
 from mixseek.models.member_agent import MemberAgentConfig
 
@@ -62,29 +61,6 @@ class ClaudeCodePlainAgent(BaseClaudeCodeAgent):
                 model_settings=model_settings,
                 retries=config.max_retries,
             )
-
-    def _create_model_settings(self) -> ModelSettings:
-        """Create ModelSettings from MemberAgentConfig.
-
-        Returns:
-            ModelSettings TypedDict with configured values
-        """
-        settings: ModelSettings = {}
-
-        if self.config.temperature is not None:
-            settings["temperature"] = self.config.temperature
-        if self.config.max_tokens is not None:
-            settings["max_tokens"] = self.config.max_tokens
-        if self.config.stop_sequences is not None:
-            settings["stop_sequences"] = self.config.stop_sequences
-        if self.config.top_p is not None:
-            settings["top_p"] = self.config.top_p
-        if self.config.seed is not None:
-            settings["seed"] = self.config.seed
-        if self.config.timeout_seconds is not None:
-            settings["timeout"] = float(self.config.timeout_seconds)
-
-        return settings
 
     def _get_agent(self) -> Agent[ClaudeCodeAgentDeps, str]:
         """Get the Pydantic AI agent instance.

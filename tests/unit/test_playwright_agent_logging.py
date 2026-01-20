@@ -51,7 +51,7 @@ class TestPlaywrightAgentMCPToolLogging:
         ):
             agent = PlaywrightMarkdownFetchAgent.__new__(PlaywrightMarkdownFetchAgent)
 
-            result = agent._wrap_tool_for_mcp(mock_tool)
+            result = agent._wrap_tool_for_mcp(mock_tool)  # type: ignore[arg-type]
 
             # Verify it has the required attributes
             assert hasattr(result, "name")
@@ -84,7 +84,7 @@ class TestPlaywrightAgentMCPToolLogging:
         ):
             agent = PlaywrightMarkdownFetchAgent.__new__(PlaywrightMarkdownFetchAgent)
 
-            wrapped_tool = agent._wrap_tool_for_mcp(mock_tool)
+            wrapped_tool = agent._wrap_tool_for_mcp(mock_tool)  # type: ignore[arg-type]
 
             # Call the wrapped function
             await wrapped_tool.function(url="https://example.com")
@@ -115,7 +115,7 @@ class TestPlaywrightAgentMCPToolLogging:
         ):
             agent = PlaywrightMarkdownFetchAgent.__new__(PlaywrightMarkdownFetchAgent)
 
-            wrapped_tool = agent._wrap_tool_for_mcp(mock_tool)
+            wrapped_tool = agent._wrap_tool_for_mcp(mock_tool)  # type: ignore[arg-type]
 
             # Function metadata should be preserved
             assert wrapped_tool.function.__name__ == "original_func"
