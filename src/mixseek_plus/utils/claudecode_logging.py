@@ -6,9 +6,16 @@ from pydantic-ai message history.
 
 from __future__ import annotations
 
-from typing import TypedDict
+from typing import Literal, TypedDict
 
 from pydantic_ai.messages import ModelMessage, ToolCallPart, ToolReturnPart
+
+from mixseek_plus.utils.constants import (
+    ARGS_SUMMARY_DEFAULT_MAX_LENGTH,
+    PARAM_VALUE_MAX_LENGTH,
+    RESULT_SUMMARY_DEFAULT_MAX_LENGTH,
+    TRUNCATION_SUFFIX_LENGTH,
+)
 
 
 class ExtractedToolCall(TypedDict):
@@ -17,7 +24,7 @@ class ExtractedToolCall(TypedDict):
     tool_name: str
     args_summary: str
     tool_call_id: str | None
-    status: str  # "success", "error", or "unknown"
+    status: Literal["success", "unknown"]
     result_summary: str | None
 
 
@@ -29,13 +36,15 @@ class ClaudeCodeToolCallExtractor:
     """
 
     def __init__(
-        self, args_max_length: int = 100, result_max_length: int = 200
+        self,
+        args_max_length: int = ARGS_SUMMARY_DEFAULT_MAX_LENGTH,
+        result_max_length: int = RESULT_SUMMARY_DEFAULT_MAX_LENGTH,
     ) -> None:
         """Initialize extractor with truncation limits.
 
         Args:
-            args_max_length: Maximum length for args summary (default 100)
-            result_max_length: Maximum length for result summary (default 200)
+            args_max_length: Maximum length for args summary
+            result_max_length: Maximum length for result summary
         """
         self._args_max_length = args_max_length
         self._result_max_length = result_max_length
@@ -92,21 +101,23 @@ class ClaudeCodeToolCallExtractor:
             args: Tool arguments dictionary or other object
 
         Returns:
-            Summarized string representation (max 100 chars)
+            Summarized string representation
         """
         if isinstance(args, dict):
             parts = []
             for k, v in args.items():
                 v_str = str(v)
-                if len(v_str) > 50:
-                    v_str = v_str[:47] + "..."
+                truncate_at = PARAM_VALUE_MAX_LENGTH - TRUNCATION_SUFFIX_LENGTH
+                if len(v_str) > PARAM_VALUE_MAX_LENGTH:
+                    v_str = v_str[:truncate_at] + "..."
                 parts.append(f"{k}={v_str}")
             summary = ", ".join(parts)
         else:
             summary = str(args)
 
         if len(summary) > self._args_max_length:
-            return summary[: self._args_max_length - 3] + "..."
+            truncate_at = self._args_max_length - TRUNCATION_SUFFIX_LENGTH
+            return summary[:truncate_at] + "..."
         return summary
 
     def _summarize_result(self, result: str) -> str:
@@ -116,8 +127,9 @@ class ClaudeCodeToolCallExtractor:
             result: Tool result string
 
         Returns:
-            Summarized string (max 200 chars)
+            Summarized string
         """
         if len(result) > self._result_max_length:
-            return result[: self._result_max_length - 3] + "..."
+            truncate_at = self._result_max_length - TRUNCATION_SUFFIX_LENGTH
+            return result[:truncate_at] + "..."
         return result

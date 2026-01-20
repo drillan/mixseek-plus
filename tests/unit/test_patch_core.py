@@ -11,13 +11,24 @@ Tests cover:
 - MCP-010, MCP-011: patched_run() ContextVar management
 """
 
+from dataclasses import dataclass
 from pathlib import Path
+from typing import Callable, Coroutine
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from claudecode_model import ClaudeCodeModel
 
 from mixseek_plus.providers.claudecode import FixedTokenClaudeCodeModel
+
+
+@dataclass
+class MockTool:
+    """Dataclass-compatible tool mock for testing _create_mcp_compatible_tool."""
+
+    name: str
+    description: str | None
+    function: Callable[..., Coroutine[object, object, str]]
 
 
 class TestPatchCoreClaudeCodeSupport:
@@ -814,9 +825,15 @@ class TestLeaderAgentPatch:
         # Reset patch state
         core_patch._ORIGINAL_CREATE_LEADER_AGENT = None
 
-        # Create mock tools
-        mock_tool1 = MagicMock(name="tool1")
-        mock_tool2 = MagicMock(name="tool2")
+        # Create dataclass-compatible tool mocks (pydantic-ai Tool is a dataclass)
+        async def mock_func1(ctx: object, **kwargs: object) -> str:
+            return "result1"
+
+        async def mock_func2(ctx: object, **kwargs: object) -> str:
+            return "result2"
+
+        mock_tool1 = MockTool(name="tool1", description="Tool 1", function=mock_func1)
+        mock_tool2 = MockTool(name="tool2", description="Tool 2", function=mock_func2)
 
         # Create mock ClaudeCodeModel - must be actual instance for isinstance check
         mock_claudecode_model = MagicMock(spec=ClaudeCodeModel)
@@ -1147,10 +1164,10 @@ class TestWrapToolFunctionForMCP:
     async def test_wrap_tool_function_injects_context_when_deps_set(self) -> None:
         """MCP-002: Wrapped tool function injects context when deps is set."""
         from mixseek_plus.core_patch import (
-            _MockRunContext,
             _current_deps,
             _wrap_tool_function_for_mcp,
         )
+        from mixseek_plus.utils.verbose import MockRunContext
 
         # Create mock deps
         mock_deps = MagicMock()
@@ -1163,7 +1180,9 @@ class TestWrapToolFunctionForMCP:
             # Create a tool function that captures the context
             captured_ctx = None
 
-            async def mock_tool_func(ctx: _MockRunContext, **kwargs: object) -> str:
+            async def mock_tool_func(
+                ctx: MockRunContext[object], **kwargs: object
+            ) -> str:
                 nonlocal captured_ctx
                 captured_ctx = ctx
                 return "result"
@@ -1175,7 +1194,7 @@ class TestWrapToolFunctionForMCP:
 
             # Verify context was injected
             assert captured_ctx is not None
-            assert isinstance(captured_ctx, _MockRunContext)
+            assert isinstance(captured_ctx, MockRunContext)
             assert captured_ctx.deps == mock_deps
             assert result == "result"
         finally:
@@ -1228,11 +1247,13 @@ class TestPatchedRunContextVar:
 
         core_patch._ORIGINAL_CREATE_LEADER_AGENT = None
 
-        # Create mock tool
-        mock_tool = MagicMock()
-        mock_tool.name = "test_tool"
-        mock_tool.description = "A test tool"
-        mock_tool.function = AsyncMock(return_value="result")
+        # Create dataclass-compatible mock tool
+        async def mock_func(ctx: object, **kwargs: object) -> str:
+            return "result"
+
+        mock_tool = MockTool(
+            name="test_tool", description="A test tool", function=mock_func
+        )
 
         # Create mock ClaudeCodeModel
         mock_claudecode_model = MagicMock(spec=ClaudeCodeModel)
@@ -1299,10 +1320,13 @@ class TestPatchedRunContextVar:
 
         core_patch._ORIGINAL_CREATE_LEADER_AGENT = None
 
-        mock_tool = MagicMock()
-        mock_tool.name = "test_tool"
-        mock_tool.description = "A test tool"
-        mock_tool.function = AsyncMock(return_value="result")
+        # Create dataclass-compatible mock tool
+        async def mock_func(ctx: object, **kwargs: object) -> str:
+            return "result"
+
+        mock_tool = MockTool(
+            name="test_tool", description="A test tool", function=mock_func
+        )
 
         mock_claudecode_model = MagicMock(spec=ClaudeCodeModel)
         mock_claudecode_model.set_agent_toolsets = MagicMock()
@@ -1358,10 +1382,13 @@ class TestPatchedRunContextVar:
 
         core_patch._ORIGINAL_CREATE_LEADER_AGENT = None
 
-        mock_tool = MagicMock()
-        mock_tool.name = "test_tool"
-        mock_tool.description = "A test tool"
-        mock_tool.function = AsyncMock(return_value="result")
+        # Create dataclass-compatible mock tool
+        async def mock_func(ctx: object, **kwargs: object) -> str:
+            return "result"
+
+        mock_tool = MockTool(
+            name="test_tool", description="A test tool", function=mock_func
+        )
 
         mock_claudecode_model = MagicMock(spec=ClaudeCodeModel)
         mock_claudecode_model.set_agent_toolsets = MagicMock()
@@ -1420,10 +1447,13 @@ class TestPatchedRunContextVar:
 
         core_patch._ORIGINAL_CREATE_LEADER_AGENT = None
 
-        mock_tool = MagicMock()
-        mock_tool.name = "test_tool"
-        mock_tool.description = "A test tool"
-        mock_tool.function = AsyncMock(return_value="result")
+        # Create dataclass-compatible mock tool
+        async def mock_func(ctx: object, **kwargs: object) -> str:
+            return "result"
+
+        mock_tool = MockTool(
+            name="test_tool", description="A test tool", function=mock_func
+        )
 
         mock_claudecode_model = MagicMock(spec=ClaudeCodeModel)
         mock_claudecode_model.set_agent_toolsets = MagicMock()

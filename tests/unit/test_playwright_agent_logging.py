@@ -4,9 +4,20 @@ US1: MCPツール呼び出しのログ確認
 T008: PlaywrightMarkdownFetchAgent のMCPツールログテスト
 """
 
-from unittest.mock import MagicMock, patch
+from dataclasses import dataclass
+from typing import Callable, Coroutine
+from unittest.mock import patch
 
 import pytest
+
+
+@dataclass
+class MockTool:
+    """Dataclass-compatible tool mock for testing _wrap_tool_for_mcp."""
+
+    name: str
+    description: str | None
+    function: Callable[..., Coroutine[object, object, str]]
 
 
 class TestPlaywrightAgentMCPToolLogging:
@@ -26,15 +37,13 @@ class TestPlaywrightAgentMCPToolLogging:
             PlaywrightMarkdownFetchAgent,
         )
 
-        # Create a mock tool
-        mock_tool = MagicMock()
-        mock_tool.name = "test_tool"
-        mock_tool.description = "Test description"
-
+        # Create a dataclass-compatible mock tool
         async def mock_func(**kwargs: object) -> str:
             return "result"
 
-        mock_tool.function = mock_func
+        mock_tool = MockTool(
+            name="test_tool", description="Test description", function=mock_func
+        )
 
         # Create agent with mocked initialization
         with patch.object(
@@ -66,10 +75,9 @@ class TestPlaywrightAgentMCPToolLogging:
             received_ctx = ctx
             return "result"
 
-        mock_tool = MagicMock()
-        mock_tool.name = "fetch_page"
-        mock_tool.description = "Fetch a page"
-        mock_tool.function = mock_func
+        mock_tool = MockTool(
+            name="fetch_page", description="Fetch a page", function=mock_func
+        )
 
         with patch.object(
             PlaywrightMarkdownFetchAgent, "__init__", lambda self, config: None
@@ -98,10 +106,9 @@ class TestPlaywrightAgentMCPToolLogging:
             """Original docstring."""
             return "result"
 
-        mock_tool = MagicMock()
-        mock_tool.name = "fetch_page"
-        mock_tool.description = "Fetch a page"
-        mock_tool.function = original_func
+        mock_tool = MockTool(
+            name="fetch_page", description="Fetch a page", function=original_func
+        )
 
         with patch.object(
             PlaywrightMarkdownFetchAgent, "__init__", lambda self, config: None

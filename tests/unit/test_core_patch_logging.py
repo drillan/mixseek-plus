@@ -47,67 +47,68 @@ class TestEnableDisableVerboseMode:
     def test_enable_verbose_mode_makes_is_verbose_mode_true(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """enable_verbose_mode() 後に _is_verbose_mode() がTrueを返す."""
-        from mixseek_plus.core_patch import _is_verbose_mode, enable_verbose_mode
+        """enable_verbose_mode() 後に is_verbose_mode() がTrueを返す."""
+        from mixseek_plus.core_patch import enable_verbose_mode
+        from mixseek_plus.utils.verbose import is_verbose_mode
 
         monkeypatch.delenv("MIXSEEK_VERBOSE", raising=False)
-        assert _is_verbose_mode() is False
+        assert is_verbose_mode() is False
         enable_verbose_mode()
-        assert _is_verbose_mode() is True
+        assert is_verbose_mode() is True
 
     def test_disable_verbose_mode_makes_is_verbose_mode_false(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """disable_verbose_mode() 後に _is_verbose_mode() がFalseを返す."""
+        """disable_verbose_mode() 後に is_verbose_mode() がFalseを返す."""
         from mixseek_plus.core_patch import (
-            _is_verbose_mode,
             disable_verbose_mode,
             enable_verbose_mode,
         )
+        from mixseek_plus.utils.verbose import is_verbose_mode
 
         monkeypatch.delenv("MIXSEEK_VERBOSE", raising=False)
         enable_verbose_mode()
-        assert _is_verbose_mode() is True
+        assert is_verbose_mode() is True
         disable_verbose_mode()
-        assert _is_verbose_mode() is False
+        assert is_verbose_mode() is False
 
 
 class TestIsVerboseMode:
-    """_is_verbose_mode() ヘルパー関数のテスト."""
+    """is_verbose_mode() ヘルパー関数のテスト."""
 
     def test_verbose_mode_disabled_by_default(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """環境変数未設定時はFalseを返す."""
-        from mixseek_plus.core_patch import _is_verbose_mode
+        from mixseek_plus.utils.verbose import is_verbose_mode
 
         monkeypatch.delenv("MIXSEEK_VERBOSE", raising=False)
-        assert _is_verbose_mode() is False
+        assert is_verbose_mode() is False
 
     def test_verbose_mode_enabled_with_1(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """MIXSEEK_VERBOSE=1 でTrueを返す."""
-        from mixseek_plus.core_patch import _is_verbose_mode
+        from mixseek_plus.utils.verbose import is_verbose_mode
 
         monkeypatch.setenv("MIXSEEK_VERBOSE", "1")
-        assert _is_verbose_mode() is True
+        assert is_verbose_mode() is True
 
     def test_verbose_mode_enabled_with_true(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """MIXSEEK_VERBOSE=true でTrueを返す (case-insensitive)."""
-        from mixseek_plus.core_patch import _is_verbose_mode
+        from mixseek_plus.utils.verbose import is_verbose_mode
 
         monkeypatch.setenv("MIXSEEK_VERBOSE", "TRUE")
-        assert _is_verbose_mode() is True
+        assert is_verbose_mode() is True
 
     def test_verbose_mode_disabled_with_other_values(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """その他の値ではFalseを返す."""
-        from mixseek_plus.core_patch import _is_verbose_mode
+        from mixseek_plus.utils.verbose import is_verbose_mode
 
         monkeypatch.setenv("MIXSEEK_VERBOSE", "yes")
-        assert _is_verbose_mode() is False
+        assert is_verbose_mode() is False
 
 
 class TestIsLogfireMode:
@@ -169,6 +170,15 @@ class TestWrapToolFunctionForMCPLogging:
         try:
             result = await wrapped(arg1="value1")
             assert result == "success result"
+
+            # Verify log_tool_invocation was called
+            mock_logger.log_tool_invocation.assert_called_once()
+            call_kwargs = mock_logger.log_tool_invocation.call_args.kwargs
+            assert call_kwargs["execution_id"] == "test-exec-123"
+            assert call_kwargs["tool_name"] == "test_tool"
+            assert call_kwargs["status"] == "success"
+            assert "execution_time_ms" in call_kwargs
+            assert call_kwargs["parameters"] == {"arg1": "value1"}
         finally:
             _current_deps.reset(token)
 

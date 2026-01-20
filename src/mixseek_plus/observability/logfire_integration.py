@@ -62,5 +62,5 @@ def setup_logfire_instrumentation() -> bool:
         logger.info("Logfire pydantic-ai instrumentation enabled")
         return True
     except Exception as e:
-        logger.warning("Failed to enable Logfire instrumentation: %s", e)
+        logger.warning("Failed to enable Logfire instrumentation: %s", e, exc_info=True)
         return False
