@@ -183,6 +183,6 @@ class TestGroqWebSearchAgentExecute:
             result = await agent.execute("Search for something")
 
         assert result.status == ResultStatus.ERROR
-        assert result.error_code == "EXECUTION_ERROR"
+        assert result.error_code == "RUNTIME_ERROR"
         assert result.error_message is not None
         assert "Service unavailable" in result.error_message

@@ -45,7 +45,28 @@ class PresetError(Exception):
     """Base exception for preset-related errors."""
 
 
-class PresetFileNotFoundError(PresetError):
+class PresetFileError(PresetError):
+    """Base exception for file-related preset errors.
+
+    This class provides common functionality for errors related to
+    preset file access (not found, syntax errors, etc.).
+
+    Attributes:
+        file_path: The path to the preset file.
+    """
+
+    def __init__(self, file_path: Path, message: str) -> None:
+        """Initialize PresetFileError.
+
+        Args:
+            file_path: The path to the preset file.
+            message: The error message.
+        """
+        self.file_path = file_path
+        super().__init__(message)
+
+
+class PresetFileNotFoundError(PresetFileError):
     """Raised when the preset TOML file is not found.
 
     This error indicates that the configs/presets/claudecode.toml file
@@ -63,17 +84,16 @@ class PresetFileNotFoundError(PresetError):
             file_path: The full path to the missing preset file.
             workspace: The workspace directory.
         """
-        self.file_path = file_path
         self.workspace = workspace
         message = (
             f"Preset file not found: {file_path}\n"
             f"Expected location: {workspace / PRESET_FILE_PATH}\n"
             f"Please create the preset file or remove the 'preset' key from tool_settings."
         )
-        super().__init__(message)
+        super().__init__(file_path, message)
 
 
-class PresetSyntaxError(PresetError):
+class PresetSyntaxError(PresetFileError):
     """Raised when the preset TOML file contains invalid syntax.
 
     This error indicates that the configs/presets/claudecode.toml file
@@ -91,14 +111,13 @@ class PresetSyntaxError(PresetError):
             file_path: The path to the preset file with invalid syntax.
             original_error: The original tomllib.TOMLDecodeError.
         """
-        self.file_path = file_path
         self.original_error = original_error
         message = (
             f"Invalid TOML syntax in preset file: {file_path}\n"
             f"Error: {original_error}\n"
             f"Please check the TOML syntax in the preset file."
         )
-        super().__init__(message)
+        super().__init__(file_path, message)
 
 
 class PresetNotFoundError(PresetError):

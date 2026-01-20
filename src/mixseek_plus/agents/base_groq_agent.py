@@ -6,7 +6,6 @@ eliminating code duplication between GroqPlainAgent and GroqWebSearchAgent.
 
 import time
 from abc import abstractmethod
-from typing import Any, cast
 
 from httpx import HTTPStatusError
 from pydantic_ai import Agent, IncompleteToolCall
@@ -16,19 +15,20 @@ from pydantic_ai.settings import ModelSettings
 from mixseek.agents.member.base import BaseMemberAgent
 from mixseek.models.member_agent import MemberAgentConfig, MemberAgentResult
 
+from mixseek_plus.agents.mixins.execution import PydanticAgentExecutorMixin
 from mixseek_plus.errors import ModelCreationError
 from mixseek_plus.model_factory import create_model
-from mixseek_plus.types import AgentMetadata, UsageInfo
+from mixseek_plus.types import AgentMetadata
 
 
-class BaseGroqAgent(BaseMemberAgent):
+class BaseGroqAgent(BaseMemberAgent, PydanticAgentExecutorMixin):
     """Base class for Groq-based Member Agents.
 
     Provides common functionality shared by GroqPlainAgent and GroqWebSearchAgent:
     - Model creation via mixseek-plus
     - ModelSettings creation from config
     - API error extraction with detailed messages
-    - Common execute() flow with error handling
+    - Common execute() flow with error handling (via PydanticAgentExecutorMixin)
 
     Subclasses must implement:
     - _create_agent(): Create the Pydantic AI agent with appropriate configuration
@@ -92,15 +92,35 @@ class BaseGroqAgent(BaseMemberAgent):
         if isinstance(error, HTTPStatusError):
             status_code = error.response.status_code
 
-            if status_code == 401:
+            if status_code == 400:
+                return (
+                    f"Groq API bad request: {error}",
+                    "BAD_REQUEST_ERROR",
+                )
+            elif status_code == 401:
                 return (
                     "Groq API authentication failed. Please check your GROQ_API_KEY.",
                     "AUTH_ERROR",
+                )
+            elif status_code == 403:
+                return (
+                    f"Groq API access forbidden: {error}",
+                    "FORBIDDEN_ERROR",
+                )
+            elif status_code == 404:
+                return (
+                    f"Groq API resource not found: {error}",
+                    "NOT_FOUND_ERROR",
                 )
             elif status_code == 429:
                 return (
                     "Groq API rate limit exceeded. Please wait and retry.",
                     "RATE_LIMIT_ERROR",
+                )
+            elif status_code in (500, 502, 504):
+                return (
+                    f"Groq API server error (HTTP {status_code}). Please try again later.",
+                    "SERVER_ERROR",
                 )
             elif status_code == 503:
                 return (
@@ -110,14 +130,14 @@ class BaseGroqAgent(BaseMemberAgent):
             else:
                 return (
                     f"Groq API error (HTTP {status_code}): {error}",
-                    "EXECUTION_ERROR",
+                    "API_ERROR",
                 )
 
         # Default for non-HTTP errors
-        return (str(error), "EXECUTION_ERROR")
+        return (str(error), "RUNTIME_ERROR")
 
     @abstractmethod
-    def _get_agent(self) -> Agent[Any, str]:
+    def _get_agent(self) -> Agent[object, str]:
         """Get the Pydantic AI agent instance.
 
         Returns:
@@ -143,6 +163,29 @@ class BaseGroqAgent(BaseMemberAgent):
         """
         ...
 
+    def _build_agent_metadata(
+        self, context: dict[str, object] | None
+    ) -> dict[str, object]:
+        """Build Groq-specific metadata for results.
+
+        Args:
+            context: Optional context information
+
+        Returns:
+            Metadata dictionary for the result
+        """
+        metadata: AgentMetadata = AgentMetadata(
+            model_id=self.config.model,
+            temperature=self.config.temperature,
+            max_tokens=self.config.max_tokens,
+        )
+        # Add agent-type specific metadata
+        metadata.update(self._get_agent_type_metadata())  # type: ignore[typeddict-item]
+        if context:
+            metadata["context"] = context  # type: ignore[typeddict-item]
+
+        return dict(metadata)
+
     async def execute(
         self,
         task: str,
@@ -150,6 +193,8 @@ class BaseGroqAgent(BaseMemberAgent):
         **kwargs: object,
     ) -> MemberAgentResult:
         """Execute task with Groq agent.
+
+        Delegates to PydanticAgentExecutorMixin._execute_pydantic_agent().
 
         Args:
             task: User task or prompt to execute
@@ -159,88 +204,7 @@ class BaseGroqAgent(BaseMemberAgent):
         Returns:
             MemberAgentResult with execution outcome
         """
-        start_time = time.time()
-
-        # Log execution start
-        execution_id = self.logger.log_execution_start(
-            agent_name=self.agent_name,
-            agent_type=self.agent_type,
-            task=task,
-            model_id=self.config.model,
-            context=context,
-            **kwargs,
-        )
-
-        # Validate input
-        if not task.strip():
-            return MemberAgentResult.error(
-                error_message="Task cannot be empty or contain only whitespace",
-                agent_name=self.agent_name,
-                agent_type=self.agent_type,
-                error_code="EMPTY_TASK",
-                execution_time_ms=int((time.time() - start_time) * 1000),
-            )
-
-        try:
-            # Create dependencies (implemented by subclass)
-            deps = self._create_deps()
-
-            # Execute with Pydantic AI agent
-            # Note: Type ignore needed for kwargs compatibility with pydantic-ai's overloaded run()
-            result = await self._get_agent().run(task, deps=deps, **kwargs)  # type: ignore[call-overload]
-
-            # Capture complete message history
-            all_messages = result.all_messages()
-
-            execution_time_ms = int((time.time() - start_time) * 1000)
-
-            # Extract usage information if available
-            usage_info: UsageInfo = {}
-            if hasattr(result, "usage"):
-                usage = result.usage()
-                usage_info = UsageInfo(
-                    total_tokens=getattr(usage, "total_tokens", None),
-                    prompt_tokens=getattr(usage, "prompt_tokens", None),
-                    completion_tokens=getattr(usage, "completion_tokens", None),
-                    requests=getattr(usage, "requests", None),
-                )
-
-            # Build metadata
-            metadata: AgentMetadata = AgentMetadata(
-                model_id=self.config.model,
-                temperature=self.config.temperature,
-                max_tokens=self.config.max_tokens,
-            )
-            # Add agent-type specific metadata
-            metadata.update(self._get_agent_type_metadata())  # type: ignore[typeddict-item]
-            if context:
-                metadata["context"] = context  # type: ignore[typeddict-item]
-
-            # Cast TypedDicts to dict[str, Any] for API compatibility
-            usage_dict = cast(dict[str, Any], usage_info) if usage_info else None
-            metadata_dict = cast(dict[str, Any], metadata)
-
-            result_obj = MemberAgentResult.success(
-                content=str(result.output),
-                agent_name=self.agent_name,
-                agent_type=self.agent_type,
-                execution_time_ms=execution_time_ms,
-                usage_info=usage_dict,
-                metadata=metadata_dict,
-                all_messages=all_messages,
-            )
-
-            # Log completion
-            self.logger.log_execution_complete(
-                execution_id=execution_id, result=result_obj, usage_info=usage_dict
-            )
-
-            return result_obj
-
-        except Exception as e:
-            return self._handle_execution_error(
-                e, task, kwargs, execution_id, start_time
-            )
+        return await self._execute_pydantic_agent(task, context, **kwargs)
 
     def _handle_execution_error(
         self,
