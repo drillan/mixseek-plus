@@ -1,10 +1,13 @@
 """Utility modules for mixseek-plus.
 
 This module provides utility classes and functions including
-ClaudeCode tool call extraction for logging.
+pydantic-ai tool call extraction for logging.
 """
 
-from mixseek_plus.utils.claudecode_logging import ClaudeCodeToolCallExtractor
+from mixseek_plus.utils.tool_logging import (
+    ClaudeCodeToolCallExtractor,  # Backward compatibility alias
+    PydanticAIToolCallExtractor,
+)
 from mixseek_plus.utils.constants import (
     ARGS_SUMMARY_DEFAULT_MAX_LENGTH,
     PARAM_VALUE_MAX_LENGTH,
@@ -16,9 +19,12 @@ from mixseek_plus.utils.constants import (
 from mixseek_plus.utils.verbose import (
     MockRunContext,
     ToolLike,
+    ToolStatus,
     configure_verbose_logging_for_mode,
     ensure_verbose_logging_configured,
     is_verbose_mode,
+    log_verbose_tool_done,
+    log_verbose_tool_start,
 )
 
 __all__ = [
@@ -32,9 +38,13 @@ __all__ = [
     # Verbose utilities
     "MockRunContext",
     "ToolLike",
+    "ToolStatus",
     "configure_verbose_logging_for_mode",
     "ensure_verbose_logging_configured",
     "is_verbose_mode",
+    "log_verbose_tool_done",
+    "log_verbose_tool_start",
     # Logging utilities
-    "ClaudeCodeToolCallExtractor",
+    "ClaudeCodeToolCallExtractor",  # Backward compatibility alias
+    "PydanticAIToolCallExtractor",
 ]

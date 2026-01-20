@@ -18,16 +18,12 @@ from mixseek_plus.agents.base_playwright_agent import (
     BasePlaywrightAgent,
     FetchResult,
 )
-from mixseek_plus.utils.constants import (
-    PARAM_VALUE_MAX_LENGTH,
-    PARAMS_SUMMARY_MAX_LENGTH,
-    RESULT_PREVIEW_MAX_LENGTH,
-)
 from mixseek_plus.utils.verbose import (
     MockRunContext,
     ToolLike,
-    ensure_verbose_logging_configured,
-    is_verbose_mode,
+    ToolStatus,
+    log_verbose_tool_done,
+    log_verbose_tool_start,
 )
 
 logger = logging.getLogger(__name__)
@@ -218,20 +214,11 @@ class PlaywrightMarkdownFetchAgent(BasePlaywrightAgent):
             deps = PlaywrightDeps(agent=agent_ref)
             mock_ctx = MockRunContext(deps=deps)
 
-            # Ensure verbose logging is configured (lazy init)
-            ensure_verbose_logging_configured()
-
-            # Verbose mode output via member_agents logger (has handlers configured)
-            member_logger = logging.getLogger("mixseek.member_agents")
-            if is_verbose_mode():
-                params_str = ", ".join(
-                    f"{k}={str(v)[:PARAM_VALUE_MAX_LENGTH]}{'...' if len(str(v)) > PARAM_VALUE_MAX_LENGTH else ''}"
-                    for k, v in kwargs.items()
-                )[:PARAMS_SUMMARY_MAX_LENGTH]
-                member_logger.info("[MCP Tool Start] %s: %s", tool_name, params_str)
+            # Log tool start via unified verbose helper
+            log_verbose_tool_start(tool_name, dict(kwargs))
 
             start_time = time.perf_counter()
-            status = "success"
+            status: ToolStatus = "success"
             result_str = ""
             try:
                 result = await original_function(mock_ctx, **kwargs)
@@ -243,22 +230,19 @@ class PlaywrightMarkdownFetchAgent(BasePlaywrightAgent):
             finally:
                 execution_time_ms = int((time.perf_counter() - start_time) * 1000)
 
-                # Verbose mode output via member_agents logger
-                if is_verbose_mode():
-                    member_logger.info(
-                        "[MCP Tool Done] %s: %s in %dms",
+                # Log tool completion via unified verbose helper
+                # (wrapped to prevent masking original exceptions)
+                try:
+                    log_verbose_tool_done(
                         tool_name,
                         status,
                         execution_time_ms,
+                        result_preview=result_str if result_str else None,
                     )
-                    # Log result preview
-                    if result_str:
-                        preview = result_str[:RESULT_PREVIEW_MAX_LENGTH].replace(
-                            "\n", "\\n"
-                        )
-                        member_logger.info("[MCP Tool Result Preview] %s", preview)
+                except Exception as log_error:
+                    logger.debug("Failed to log tool completion: %s", log_error)
 
-                # Log tool invocation via MemberAgentLogger
+                # Log tool invocation via MemberAgentLogger (file logging)
                 has_logger = hasattr(agent_ref, "logger")
                 has_method = has_logger and hasattr(
                     agent_ref.logger, "log_tool_invocation"

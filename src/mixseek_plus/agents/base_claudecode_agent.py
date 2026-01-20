@@ -7,7 +7,6 @@ following the same pattern as BaseGroqAgent.
 from __future__ import annotations
 
 import logging
-import os
 import time
 from abc import abstractmethod
 from dataclasses import dataclass
@@ -30,7 +29,11 @@ from mixseek_plus.providers.claudecode import (
     create_claudecode_model,
 )
 from mixseek_plus.types import AgentMetadata, UsageInfo
-from mixseek_plus.utils.claudecode_logging import ClaudeCodeToolCallExtractor
+from mixseek_plus.utils.tool_logging import PydanticAIToolCallExtractor
+from mixseek_plus.utils.verbose import (
+    log_verbose_tool_done,
+    log_verbose_tool_start,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -207,14 +210,6 @@ class BaseClaudeCodeAgent(BaseMemberAgent):
         # Default for other errors
         return (str(error), "EXECUTION_ERROR")
 
-    def _is_verbose_mode(self) -> bool:
-        """Check if verbose mode is enabled via environment variable.
-
-        Returns:
-            True if MIXSEEK_VERBOSE is set to '1' or 'true'
-        """
-        return os.getenv("MIXSEEK_VERBOSE", "").lower() in ("1", "true")
-
     def _log_tool_calls_from_history(
         self, execution_id: str, messages: list[ModelMessage]
     ) -> None:
@@ -230,26 +225,20 @@ class BaseClaudeCodeAgent(BaseMemberAgent):
         if not messages:
             return
 
-        extractor = ClaudeCodeToolCallExtractor()
+        extractor = PydanticAIToolCallExtractor()
         tool_calls = extractor.extract_tool_calls(messages)
 
         for call in tool_calls:
-            # Verbose mode console output
-            if self._is_verbose_mode():
-                logger.info(
-                    "[Tool Call] %s: %s -> %s",
-                    call["tool_name"],
-                    call["args_summary"],
-                    call["status"],
-                )
-                if call["result_summary"]:
-                    logger.info(
-                        "[Tool Result] %s: %s",
-                        call["tool_name"],
-                        call["result_summary"][:100],
-                    )
+            # Verbose mode console output via unified helpers
+            log_verbose_tool_start(call["tool_name"], {"args": call["args_summary"]})
+            log_verbose_tool_done(
+                call["tool_name"],
+                call["status"],
+                0,  # execution_time_ms not available from history
+                result_preview=call["result_summary"],
+            )
 
-            # Log via MemberAgentLogger
+            # Log via MemberAgentLogger (file logging)
             # Note: execution_time_ms is not available from message history
             self.logger.log_tool_invocation(
                 execution_id=execution_id,

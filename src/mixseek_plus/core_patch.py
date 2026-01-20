@@ -27,16 +27,14 @@ from mixseek.utils.env import get_workspace_for_config
 from mixseek_plus.presets import PresetError
 from mixseek_plus.providers import CLAUDECODE_PROVIDER_PREFIX, GROQ_PROVIDER_PREFIX
 from mixseek_plus.providers.claudecode import ClaudeCodeToolSettings
-from mixseek_plus.utils.constants import (
-    PARAM_VALUE_MAX_LENGTH,
-    PARAMS_SUMMARY_MAX_LENGTH,
-)
 from mixseek_plus.utils.verbose import (
     MockRunContext,
     ToolLike,
+    ToolStatus,
     configure_verbose_logging_for_mode,
     ensure_verbose_logging_configured,
-    is_verbose_mode,
+    log_verbose_tool_done,
+    log_verbose_tool_start,
 )
 
 if TYPE_CHECKING:
@@ -748,18 +746,11 @@ def _wrap_tool_function_for_mcp(
         # Ensure verbose logging is configured (lazy init after handlers are created)
         ensure_verbose_logging_configured()
 
-        # Verbose mode output via member_agents logger (has handlers configured)
-        member_logger = logging.getLogger("mixseek.member_agents")
-        if is_verbose_mode():
-            # Summarize parameters for output
-            params_str = ", ".join(
-                f"{k}={str(v)[:PARAM_VALUE_MAX_LENGTH]}{'...' if len(str(v)) > PARAM_VALUE_MAX_LENGTH else ''}"
-                for k, v in kwargs.items()
-            )[:PARAMS_SUMMARY_MAX_LENGTH]
-            member_logger.info("[MCP Tool Start] %s: %s", tool_name, params_str)
+        # Log tool start via unified verbose helper
+        log_verbose_tool_start(tool_name, dict(kwargs))
 
         start_time = time.perf_counter()
-        status = "success"
+        status: ToolStatus = "success"
         try:
             result = await original_func(mock_ctx, **kwargs)
             return result
@@ -769,14 +760,12 @@ def _wrap_tool_function_for_mcp(
         finally:
             execution_time_ms = int((time.perf_counter() - start_time) * 1000)
 
-            # Verbose mode output via member_agents logger (has handlers configured)
-            if is_verbose_mode():
-                member_logger.info(
-                    "[MCP Tool Done] %s: %s in %dms",
-                    tool_name,
-                    status,
-                    execution_time_ms,
-                )
+            # Log tool completion via unified verbose helper
+            # (wrapped to prevent masking original exceptions)
+            try:
+                log_verbose_tool_done(tool_name, status, execution_time_ms)
+            except Exception as log_error:
+                logger.debug("Failed to log tool completion: %s", log_error)
 
             # Log tool invocation via MemberAgentLogger if logger is available on deps
             deps_logger = getattr(deps, "logger", None)

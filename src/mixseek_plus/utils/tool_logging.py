@@ -1,4 +1,4 @@
-"""ClaudeCode logging utilities.
+"""Pydantic AI tool logging utilities.
 
 This module provides utilities for extracting and logging tool calls
 from pydantic-ai message history.
@@ -6,7 +6,7 @@ from pydantic-ai message history.
 
 from __future__ import annotations
 
-from typing import Literal, TypedDict
+from typing import TypedDict
 
 from pydantic_ai.messages import ModelMessage, ToolCallPart, ToolReturnPart
 
@@ -16,6 +16,7 @@ from mixseek_plus.utils.constants import (
     RESULT_SUMMARY_DEFAULT_MAX_LENGTH,
     TRUNCATION_SUFFIX_LENGTH,
 )
+from mixseek_plus.utils.verbose import ToolStatus
 
 
 class ExtractedToolCall(TypedDict):
@@ -24,15 +25,16 @@ class ExtractedToolCall(TypedDict):
     tool_name: str
     args_summary: str
     tool_call_id: str | None
-    status: Literal["success", "unknown"]
+    status: ToolStatus
     result_summary: str | None
 
 
-class ClaudeCodeToolCallExtractor:
+class PydanticAIToolCallExtractor:
     """Extract tool calls from pydantic-ai message history.
 
     This class extracts ToolCallPart and ToolReturnPart from pydantic-ai
     messages and matches them to create a summary of tool invocations.
+    Works with all pydantic-ai based agents (Groq, ClaudeCode, Playwright, etc.).
     """
 
     def __init__(
@@ -133,3 +135,7 @@ class ClaudeCodeToolCallExtractor:
             truncate_at = self._result_max_length - TRUNCATION_SUFFIX_LENGTH
             return result[:truncate_at] + "..."
         return result
+
+
+# Backward compatibility alias (deprecated, use PydanticAIToolCallExtractor)
+ClaudeCodeToolCallExtractor = PydanticAIToolCallExtractor
