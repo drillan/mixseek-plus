@@ -55,20 +55,26 @@ model = create_model("anthropic:claude-sonnet-4-5-20250929")
 
 ## Memberエージェント
 
-mixseek-plusは、Groq Memberエージェント（2種類）とClaudeCode Memberエージェント（1種類）を提供します。
+mixseek-plusは、以下のMemberエージェントを提供します:
+- Groq: `groq_plain`、`groq_web_search`
+- ClaudeCode: `claudecode_plain`
+- Playwright: `playwright_markdown_fetch`（Web Fetcher）
 
 ### エージェントの登録
 
 TOML設定でエージェントを使用する前に、登録が必要です。
 
 ```python
-from mixseek_plus import register_groq_agents, register_claudecode_agents
+from mixseek_plus import register_groq_agents, register_claudecode_agents, register_playwright_agents
 
 # Groqエージェントを登録
 register_groq_agents()
 
 # ClaudeCodeエージェントを登録
 register_claudecode_agents()
+
+# Playwrightエージェントを登録（要: pip install mixseek-plus[playwright]）
+register_playwright_agents()
 ```
 
 ### Groq Memberエージェント
@@ -226,6 +232,131 @@ export MIXSEEK_WORKSPACE="/path/to/your/workspace"
 **重要:** `MIXSEEK_WORKSPACE` が設定されていない場合、プリセット解決はスキップされ、`disallowed_tools` などのセキュリティ設定が適用されない可能性があります。
 
 Leader/Evaluatorエージェントでは、TOML設定ファイルのパスからワークスペースが自動的に推定されるため、この環境変数は不要です。
+
+### Playwright Memberエージェント
+
+Playwright Web Fetcher機能を使用するには、追加のインストールが必要です:
+
+```bash
+pip install mixseek-plus[playwright]
+playwright install chromium
+```
+
+#### PlaywrightMarkdownFetchAgent
+
+Playwrightを使用してWebページを取得し、Markdown形式に変換するエージェントです。ボット対策サイトからもコンテンツを取得できます。
+
+```toml
+[[members]]
+name = "web-fetcher"
+type = "playwright_markdown_fetch"
+model = "groq:llama-3.3-70b-versatile"
+system_prompt = """
+あなたはWebページを取得してユーザーの質問に答えるアシスタントです。
+fetch_pageツールを使用してWebページの内容を取得してください。
+"""
+
+[members.playwright]
+headless = true
+timeout_ms = 30000
+wait_for_load_state = "load"
+```
+
+**特徴:**
+
+- **Headed/Headless切り替え**: ボット検知を回避するためのheadedモードサポート
+- **柔軟な待機条件**: `load`、`domcontentloaded`、`networkidle` から選択
+- **リトライ機能**: 指数バックオフによる自動リトライ
+- **リソースブロック**: 画像やフォントをブロックして高速化
+- **HTML→Markdown変換**: MarkItDownによる高品質な変換
+
+#### Playwright設定オプション
+
+`[members.playwright]` セクションで以下の設定が可能です:
+
+| オプション | 型 | デフォルト | 説明 |
+|-----------|---|----------|------|
+| `headless` | `bool` | `true` | ヘッドレスモードで実行 |
+| `timeout_ms` | `int` | `30000` | タイムアウト（ミリ秒） |
+| `wait_for_load_state` | `string` | `"load"` | 待機条件（`load`/`domcontentloaded`/`networkidle`） |
+| `retry_count` | `int` | `0` | リトライ回数（0=リトライなし） |
+| `retry_delay_ms` | `int` | `1000` | 初回リトライ遅延（ミリ秒、指数バックオフ適用） |
+| `block_resources` | `list[str]` | `null` | ブロックするリソースタイプ |
+
+**block_resourcesで指定可能な値:**
+
+- `"image"` - 画像
+- `"font"` - フォント
+- `"stylesheet"` - CSS
+- `"script"` - JavaScript
+- `"media"` - 動画/音声
+- `"xhr"` / `"fetch"` - AJAX リクエスト
+
+#### ユースケース別設定例
+
+**ボット対策サイトからの取得:**
+
+```toml
+[[members]]
+name = "bot-resistant-fetcher"
+type = "playwright_markdown_fetch"
+model = "anthropic:claude-sonnet-4-5"
+
+[members.playwright]
+headless = false  # headed モードでボット検知を回避
+timeout_ms = 60000
+wait_for_load_state = "networkidle"
+```
+
+**ClaudeCodeモデルを使用する場合:**
+
+`claudecode:` プロバイダーを使用する場合は、`type = "custom"` と `plugin` セクションを使用します。
+
+```toml
+[[members]]
+name = "claudecode-web-fetcher"
+type = "custom"
+model = "claudecode:claude-haiku-4-5"
+system_prompt = "Webページを取得して分析するアシスタントです。"
+
+[members.plugin]
+agent_module = "mixseek_plus.agents.playwright_markdown_fetch_agent"
+agent_class = "PlaywrightMarkdownFetchAgent"
+
+[members.playwright]
+headless = true
+timeout_ms = 30000
+wait_for_load_state = "networkidle"
+```
+
+> **Note:** `type = "playwright_markdown_fetch"` は mixseek-core がサポートするモデルプレフィックス（`groq:`, `anthropic:`, `openai:` 等）でのみ使用可能です。`claudecode:` を使用する場合は上記のように `type = "custom"` を指定してください。
+
+**高速な取得（画像/フォント除外）:**
+
+```toml
+[[members]]
+name = "fast-fetcher"
+type = "playwright_markdown_fetch"
+model = "openai:gpt-4o"
+
+[members.playwright]
+headless = true
+timeout_ms = 15000
+block_resources = ["image", "font", "media", "stylesheet"]
+```
+
+**リトライ付き取得:**
+
+```toml
+[[members]]
+name = "resilient-fetcher"
+type = "playwright_markdown_fetch"
+model = "groq:llama-3.3-70b-versatile"
+
+[members.playwright]
+retry_count = 3
+retry_delay_ms = 2000  # 2秒 → 4秒 → 8秒（指数バックオフ）
+```
 
 ### 共通の設定オプション
 
@@ -480,3 +611,83 @@ export MIXSEEK_WORKSPACE="/path/to/your/workspace"
 この環境変数はプリセットファイル（`configs/presets/claudecode.toml`）の検索先ディレクトリを指定します。設定されていない場合、プリセット解決がスキップされ、`disallowed_tools` などのセキュリティ設定が適用されません。
 
 Leader/Evaluatorエージェントでは、TOML設定ファイルのパスから自動的に推定されるため、この環境変数は通常不要です。
+
+### PlaywrightNotInstalledError
+
+Playwrightエージェントを使用しようとしたが、Playwrightがインストールされていません。
+
+```bash
+# Playwrightオプションを含めてインストール
+pip install mixseek-plus[playwright]
+playwright install chromium
+```
+
+### ブラウザが見つからないエラー
+
+Playwrightのブラウザがインストールされていません。
+
+```bash
+playwright install chromium
+```
+
+### Playwrightタイムアウトエラー
+
+ページの読み込みに時間がかかりすぎています。
+
+```toml
+[members.playwright]
+timeout_ms = 60000  # タイムアウトを延長
+wait_for_load_state = "domcontentloaded"  # より早い待機条件
+```
+
+### ボット検知でブロックされる
+
+一部のサイトはheadlessモードをブロックします。headedモードに切り替えてください。
+
+```toml
+[members.playwright]
+headless = false  # headed モードに切り替え
+```
+
+> **注意:** `headless = false` を使用する場合、GUIが利用可能な環境で実行する必要があります。CI/CDなど非GUI環境では使用できません。
+
+### PlaywrightでValidationError（Unsupported model）
+
+`type = "playwright_markdown_fetch"` で `claudecode:` モデルを使用すると、以下のエラーが発生します：
+
+```
+ValidationError: 1 validation error for MemberAgentConfig
+model
+  Value error, Unsupported model 'claudecode:claude-haiku-4-5'...
+```
+
+これは、mixseek-core の `MemberAgentConfig` が `claudecode:` プレフィックスをネイティブサポートしていないためです。
+
+**解決策:** `type = "custom"` と `plugin` セクションを使用してエージェントを読み込みます。
+
+```toml
+[[members]]
+name = "web-fetcher"
+type = "custom"  # playwright_markdown_fetch ではなく custom を使用
+model = "claudecode:claude-haiku-4-5"
+
+# plugin セクションでエージェントクラスを明示的に指定
+[members.plugin]
+agent_module = "mixseek_plus.agents.playwright_markdown_fetch_agent"
+agent_class = "PlaywrightMarkdownFetchAgent"
+
+[members.playwright]
+headless = true
+timeout_ms = 30000
+```
+
+この方法は、mixseek-plus が提供するすべてのカスタムエージェントで使用可能です。`type = "custom"` を使用することで、任意のモデルプレフィックスが許可されます。
+
+**利用可能なエージェントモジュール:**
+
+| エージェント | agent_module | agent_class |
+|-------------|--------------|-------------|
+| Playwright Web Fetcher | `mixseek_plus.agents.playwright_markdown_fetch_agent` | `PlaywrightMarkdownFetchAgent` |
+| Groq Plain | `mixseek_plus.agents.groq_agent` | `GroqPlainAgent` |
+| Groq Web Search | `mixseek_plus.agents.groq_web_search_agent` | `GroqWebSearchAgent` |
+| ClaudeCode Plain | `mixseek_plus.agents.claudecode_agent` | `ClaudeCodePlainAgent` |

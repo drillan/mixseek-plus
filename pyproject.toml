@@ -1,6 +1,6 @@
 [project]
 name = "mixseek-plus"
-version = "0.0.1"
+version = "0.0.2"
 description = "Add your description here"
 readme = "README.md"
 authors = [
@@ -23,6 +23,11 @@ mskp = "mixseek_plus.cli:main"
 # Observability with Logfire (optional for development/debugging)
 logfire = [
     "logfire>=4.15.1",
+]
+# Playwright + MarkItDown for web fetching with Markdown conversion
+playwright = [
+    "playwright>=1.50.0",
+    "markitdown>=0.1.4",
 ]
 
 [build-system]
@@ -47,3 +52,15 @@ docs = [
 mixseek-core = { git = "https://github.com/mixseek/mixseek-core.git" }
 claudecode-model = { git = "https://github.com/drillan/claudecode-model.git" }
 claude-agent-sdk = { git = "https://github.com/drillan/claude-agent-sdk-python.git", branch = "fix/string-prompt-mcp-transport" }
+
+[tool.mypy]
+python_version = "3.13"
+strict = true
+ignore_missing_imports = false
+
+[[tool.mypy.overrides]]
+module = [
+    "playwright.*",
+    "markitdown.*",
+]
+ignore_missing_imports = true

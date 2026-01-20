@@ -76,3 +76,61 @@ def pytest_configure(config: pytest.Config) -> None:
         "markers",
         "integration: marks tests as integration tests (deselect with '-m \"not integration\"')",
     )
+    config.addinivalue_line(
+        "markers",
+        "playwright: marks tests that require playwright (deselect with '-m \"not playwright\"')",
+    )
+
+
+# Playwright fixtures
+
+
+@pytest.fixture
+def mock_playwright_config() -> dict[str, object]:
+    """Default Playwright configuration for tests.
+
+    Returns:
+        Dictionary with default Playwright settings
+    """
+    return {
+        "headless": True,
+        "timeout_ms": 30000,
+        "wait_for_load_state": "load",
+        "retry_count": 0,
+        "retry_delay_ms": 1000,
+        "block_resources": None,
+    }
+
+
+@pytest.fixture
+def mock_playwright_config_with_retries() -> dict[str, object]:
+    """Playwright configuration with retries enabled.
+
+    Returns:
+        Dictionary with Playwright settings including retries
+    """
+    return {
+        "headless": True,
+        "timeout_ms": 30000,
+        "wait_for_load_state": "load",
+        "retry_count": 3,
+        "retry_delay_ms": 500,
+        "block_resources": None,
+    }
+
+
+@pytest.fixture
+def mock_playwright_config_with_blocking() -> dict[str, object]:
+    """Playwright configuration with resource blocking.
+
+    Returns:
+        Dictionary with Playwright settings including resource blocking
+    """
+    return {
+        "headless": True,
+        "timeout_ms": 30000,
+        "wait_for_load_state": "networkidle",
+        "retry_count": 0,
+        "retry_delay_ms": 1000,
+        "block_resources": ["image", "font", "media"],
+    }

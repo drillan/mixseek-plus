@@ -220,6 +220,29 @@ register_claudecode_agents()
 # これでTOML設定でclaudecode_plainが使用可能
 ```
 
+### register_playwright_agents
+
+```python
+def register_playwright_agents() -> None
+```
+
+Playwrightエージェントを `MemberAgentFactory` に登録します。
+TOML設定で `playwright_markdown_fetch` タイプを使用する前に呼び出す必要があります。
+
+**前提条件**: `pip install mixseek-plus[playwright]` でPlaywright依存関係をインストールしていること。
+
+この関数はべき等であり、複数回呼び出しても安全です。
+
+**使用例**
+
+```python
+from mixseek_plus import register_playwright_agents
+
+register_playwright_agents()
+
+# これでTOML設定でplaywright_markdown_fetchが使用可能
+```
+
 ### GroqPlainAgent
 
 ```python
@@ -346,6 +369,100 @@ allowed_tools = ["Read", "Glob", "Grep"]
 permission_mode = "bypassPermissions"
 ```
 
+### PlaywrightMarkdownFetchAgent
+
+```python
+class PlaywrightMarkdownFetchAgent(BasePlaywrightAgent)
+```
+
+Playwrightを使用してWebページを取得し、Markdown形式に変換するMemberエージェントです。
+
+**前提条件**: `pip install mixseek-plus[playwright]` と `playwright install chromium` が完了していること。
+
+**コンストラクタ**
+
+```python
+def __init__(self, config: MemberAgentConfig) -> None
+```
+
+| 引数 | 型 | 説明 |
+|------|-----|------|
+| `config` | `MemberAgentConfig` | エージェント設定 |
+
+**例外**
+
+- `PlaywrightNotInstalledError`: Playwrightがインストールされていない場合
+- `ValueError`: モデル作成に失敗した場合
+
+**ツール**
+
+| ツール名 | 引数 | 説明 |
+|---------|------|------|
+| `fetch_page` | `url: str` | 指定URLのWebページを取得し、Markdown形式で返却 |
+
+**メソッド**
+
+| メソッド | 説明 |
+|---------|------|
+| `execute(prompt: str)` | LLMとfetch_pageツールを使用してプロンプトを処理 |
+| `close()` | ブラウザリソースを解放（非同期） |
+
+**Playwright設定**
+
+TOML設定の `[members.playwright]` セクションで以下の設定が可能です：
+
+| 設定 | 型 | デフォルト | 説明 |
+|------|-----|----------|------|
+| `headless` | `bool` | `true` | ヘッドレスモードで実行 |
+| `timeout_ms` | `int` | `30000` | タイムアウト（ミリ秒） |
+| `wait_for_load_state` | `str` | `"load"` | 待機条件 |
+| `retry_count` | `int` | `0` | リトライ回数 |
+| `retry_delay_ms` | `int` | `1000` | 初回リトライ遅延（ミリ秒） |
+| `block_resources` | `list[str]` | `null` | ブロックするリソースタイプ |
+
+**使用例（TOML）**
+
+```toml
+[[members]]
+name = "web-fetcher"
+type = "playwright_markdown_fetch"
+model = "groq:llama-3.3-70b-versatile"
+system_prompt = "Webページを取得してユーザーの質問に答えます。"
+
+[members.playwright]
+headless = true
+timeout_ms = 30000
+wait_for_load_state = "networkidle"
+```
+
+**使用例（Python）**
+
+```python
+import asyncio
+from mixseek.models.member_agent import MemberAgentConfig
+from mixseek_plus.agents.playwright_markdown_fetch_agent import PlaywrightMarkdownFetchAgent
+
+config = MemberAgentConfig(
+    name="web-fetcher",
+    type="playwright_markdown_fetch",
+    model="groq:llama-3.3-70b-versatile",
+    system_prompt="Webページを取得してユーザーの質問に答えます。",
+    playwright={
+        "headless": True,
+        "timeout_ms": 30000,
+    },
+)
+
+agent = PlaywrightMarkdownFetchAgent(config)
+
+async def main():
+    result = await agent.execute("https://docs.python.org/3/ を要約してください")
+    print(result.content)
+    await agent.close()  # リソースを解放
+
+asyncio.run(main())
+```
+
 ## Exceptions
 
 ### ModelCreationError
@@ -448,3 +565,106 @@ Tavily検索が失敗した場合に発生する例外です。`GroqWebSearchAge
 ```python
 def __init__(self, message: str, original_error: Exception | None = None) -> None
 ```
+
+### PlaywrightNotInstalledError
+
+```python
+class PlaywrightNotInstalledError(ImportError)
+```
+
+Playwrightがインストールされていない状態でPlaywrightエージェントを使用しようとした場合に発生する例外です。
+
+**コンストラクタ**
+
+```python
+def __init__(self, message: str | None = None) -> None
+```
+
+`message` を省略すると、インストール方法を含むデフォルトメッセージが使用されます。
+
+**使用例**
+
+```python
+from mixseek_plus import PlaywrightNotInstalledError
+
+try:
+    # Playwrightエージェントを使用
+    pass
+except PlaywrightNotInstalledError as e:
+    print(f"Playwrightをインストールしてください: {e}")
+```
+
+### FetchError
+
+```python
+class FetchError(Exception)
+```
+
+ページ取得に失敗した場合に発生する例外です。`PlaywrightMarkdownFetchAgent` の使用時に発生する可能性があります。
+
+**属性**
+
+| 名前 | 型 | 説明 |
+|------|-----|------|
+| `url` | `str` | 取得を試みたURL |
+| `cause` | `Exception \| None` | 元となった例外 |
+| `attempts` | `int` | 試行回数（リトライ時） |
+
+**コンストラクタ**
+
+```python
+def __init__(
+    self,
+    message: str,
+    url: str,
+    cause: Exception | None = None,
+    attempts: int = 1,
+) -> None
+```
+
+**使用例**
+
+```python
+from mixseek_plus import FetchError
+
+try:
+    result = await agent.execute("https://example.com を取得して")
+except FetchError as e:
+    print(f"取得失敗: {e.url} ({e.attempts}回試行)")
+```
+
+### ConversionError
+
+```python
+class ConversionError(Exception)
+```
+
+HTML→Markdown変換に失敗した場合に発生する例外です。
+
+**属性**
+
+| 名前 | 型 | 説明 |
+|------|-----|------|
+| `url` | `str` | 変換を試みたページのURL |
+| `cause` | `Exception \| None` | 元となった例外 |
+
+**コンストラクタ**
+
+```python
+def __init__(
+    self,
+    message: str,
+    url: str,
+    cause: Exception | None = None,
+) -> None
+```
+
+**使用例**
+
+```python
+from mixseek_plus import ConversionError
+
+try:
+    result = await agent.execute("PDFファイルを取得して")
+except ConversionError as e:
+    print(f"変換失敗: {e.url}")

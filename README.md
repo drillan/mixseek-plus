@@ -1,23 +1,32 @@
 # mixseek-plus
 
-mixseek-coreの拡張パッケージ。Groqモデルサポート、Playwrightフェッチ機能強化などの追加機能を提供。
+mixseek-coreの拡張パッケージ。Groqモデルサポート、Playwrightフェッチ機能強化、ClaudeCodeモデル対応などの追加機能を提供。
 
 ## インストール
 
+### 基本インストール
+
 ```bash
-pip install mixseek-plus
+pip install git+https://github.com/drillan/mixseek-plus
+```
+
+### Playwright機能を使用する場合
+
+```bash
+pip install "git+https://github.com/drillan/mixseek-plus#egg=mixseek-plus[playwright]"
+playwright install chromium
 ```
 
 ## 環境変数
 
 | 変数名 | 必須 | 説明 |
 |--------|------|------|
-| `GROQ_API_KEY` | 必須 | Groq APIキー |
+| `GROQ_API_KEY` | Groq使用時 | Groq APIキー |
 | `TAVILY_API_KEY` | オプション | Web検索機能を使用する場合に必要 |
 
 ## クイックスタート
 
-### Python API
+### Groqエージェント
 
 ```python
 import mixseek_plus
@@ -31,8 +40,6 @@ mixseek_plus.patch_core()
 # TOMLファイルでgroq_plain/groq_web_searchを使う場合
 mixseek_plus.register_groq_agents()
 ```
-
-### TOML設定
 
 ```toml
 # team.toml
@@ -53,6 +60,44 @@ type = "groq_web_search"
 model = "groq:llama-3.3-70b-versatile"
 ```
 
+### Playwright Webフェッチャー
+
+Playwrightを使用してWebページを取得し、MarkItDownでMarkdown形式に変換するエージェント。
+
+```python
+from mixseek_plus import patch_core
+from mixseek_plus.agents import register_playwright_agents
+
+patch_core()
+register_playwright_agents()
+```
+
+```toml
+# team.toml
+
+[[members]]
+name = "web-fetcher"
+type = "playwright_markdown_fetch"
+model = "groq:llama-3.3-70b-versatile"
+system_prompt = "Webページを取得して分析するアシスタントです。"
+
+[members.playwright]
+headless = true
+timeout_ms = 30000
+wait_for_load_state = "networkidle"
+```
+
+#### Playwright設定オプション
+
+| オプション | 型 | デフォルト | 説明 |
+|-----------|---|----------|------|
+| `headless` | bool | `true` | ヘッドレスモードで実行（`false`でボット対策回避） |
+| `timeout_ms` | int | `30000` | タイムアウト（ミリ秒） |
+| `wait_for_load_state` | string | `"load"` | 待機条件（`load`/`domcontentloaded`/`networkidle`） |
+| `retry_count` | int | `0` | リトライ回数 |
+| `retry_delay_ms` | int | `1000` | リトライ遅延（ミリ秒、指数バックオフ適用） |
+| `block_resources` | list | `null` | ブロックするリソース（`image`/`font`/`stylesheet`等） |
+
 ### CLIの使用
 
 ```bash
@@ -64,11 +109,19 @@ mskp team "タスク" --config team.toml
 
 ## 主要機能
 
-- mixseek-coreの全機能を継承
-- Groqモデルサポート（`create_model()`）
-- Groq Memberエージェント（`groq_plain`, `groq_web_search`）
-- Leader/EvaluatorへのGroq統合（`patch_core()`）
-- Playwrightによるweb_fetch強化
+- **mixseek-core継承** - mixseek-coreの全機能を利用可能
+- **Groqモデルサポート**
+  - `create_model("groq:...")` でGroqモデル作成
+  - `groq_plain`, `groq_web_search` エージェント
+  - Leader/EvaluatorへのGroq統合（`patch_core()`）
+- **Playwright Webフェッチャー**
+  - `playwright_markdown_fetch` エージェント
+  - ボット対策サイト対応（headedモード）
+  - MarkItDownによるHTML→Markdown変換
+  - リトライ、リソースブロック機能
+- **ClaudeCodeモデルサポート**
+  - `claudecode:` プロバイダー対応
+  - Claude Code組み込みツール利用可能
 
 ## ドキュメント
 

@@ -6,6 +6,7 @@ from mixseek_plus.agents import (
     GroqWebSearchAgent,
     register_claudecode_agents,
     register_groq_agents,
+    register_playwright_agents,
 )
 from mixseek_plus.core_patch import (
     GroqNotPatchedError,
@@ -17,7 +18,13 @@ from mixseek_plus.core_patch import (
     patch_core,
     reset_configuration_manager_patch,
 )
-from mixseek_plus.errors import ClaudeCodeNotPatchedError, ModelCreationError
+from mixseek_plus.errors import (
+    ClaudeCodeNotPatchedError,
+    ConversionError,
+    FetchError,
+    ModelCreationError,
+    PlaywrightNotInstalledError,
+)
 from mixseek_plus.model_factory import create_model
 from mixseek_plus.presets import (
     PRESET_FILE_PATH,
@@ -33,11 +40,18 @@ __all__ = [
     "create_claudecode_model",
     "ModelCreationError",
     "ClaudeCodeNotPatchedError",
+    # Playwright errors
+    "PlaywrightNotInstalledError",
+    "FetchError",
+    "ConversionError",
     "GroqPlainAgent",
     "GroqWebSearchAgent",
     "ClaudeCodePlainAgent",
     "register_groq_agents",
     "register_claudecode_agents",
+    # Playwright agents (loaded lazily)
+    "PlaywrightMarkdownFetchAgent",
+    "register_playwright_agents",
     "patch_core",
     "configure_claudecode_tool_settings",
     "get_claudecode_tool_settings",
@@ -53,3 +67,18 @@ __all__ = [
     "resolve_claudecode_preset",
     "resolve_and_merge_preset",
 ]
+
+
+def __getattr__(name: str) -> object:
+    """Lazy loading for Playwright agents to avoid import errors.
+
+    This allows importing from mixseek_plus without having playwright installed,
+    raising a clear error only when the Playwright agent is actually used.
+    """
+    if name == "PlaywrightMarkdownFetchAgent":
+        from mixseek_plus.agents.playwright_markdown_fetch_agent import (
+            PlaywrightMarkdownFetchAgent,
+        )
+
+        return PlaywrightMarkdownFetchAgent
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
