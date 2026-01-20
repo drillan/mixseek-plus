@@ -111,6 +111,7 @@
 - Python 3.13+ + pydantic-ai (GroqModel), mixseek-core (create_authenticated_model, BaseMemberAgent, MemberAgentConfig) (003-groq-provider)
 - Python 3.13+ + claudecode-model, pydantic-ai, mixseek-core (create_authenticated_model, BaseMemberAgent, MemberAgentConfig) (008-claudecode-provider)
 - Python 3.13+ + Playwright, MarkItDown, pydantic-ai, mixseek-core (BaseMemberAgent, MemberAgentConfig, MemberAgentFactory) (031-playwright-markdown-fetch)
+- File-based logging (`$WORKSPACE/logs/member-agent-YYYY-MM-DD.log`) (033-claudecode-logging)
 
 ## Recent Changes
 - 003-groq-provider: Added Python 3.13+ + pydantic-ai (GroqModel), mixseek-core (create_authenticated_model)

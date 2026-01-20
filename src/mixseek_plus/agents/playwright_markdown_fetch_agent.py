@@ -7,9 +7,8 @@ and converts them to Markdown format using MarkItDown.
 from __future__ import annotations
 
 import logging
-from collections.abc import Awaitable, Callable
+import time
 from dataclasses import dataclass
-from typing import Protocol
 
 from pydantic_ai import Agent, RunContext
 
@@ -19,16 +18,19 @@ from mixseek_plus.agents.base_playwright_agent import (
     BasePlaywrightAgent,
     FetchResult,
 )
+from mixseek_plus.utils.constants import (
+    PARAM_VALUE_MAX_LENGTH,
+    PARAMS_SUMMARY_MAX_LENGTH,
+    RESULT_PREVIEW_MAX_LENGTH,
+)
+from mixseek_plus.utils.verbose import (
+    MockRunContext,
+    ToolLike,
+    ensure_verbose_logging_configured,
+    is_verbose_mode,
+)
 
 logger = logging.getLogger(__name__)
-
-
-class ToolLike(Protocol):
-    """Protocol for pydantic-ai tool objects."""
-
-    name: str
-    description: str
-    function: Callable[..., Awaitable[str]]
 
 
 @dataclass
@@ -185,57 +187,115 @@ class PlaywrightMarkdownFetchAgent(BasePlaywrightAgent):
         When tools are called via MCP, pydantic-ai's RunContext is not available.
         This wrapper injects a mock context with PlaywrightDeps.
 
+        This wrapper also:
+        - Measures execution time
+        - Logs tool invocation via MemberAgentLogger
+        - Outputs verbose console log if MIXSEEK_VERBOSE is enabled
+
         Args:
             tool: A pydantic-ai Tool object
 
         Returns:
             A new Tool object with wrapped function
+
+        Raises:
+            TypeError: If dataclasses.replace() fails.
         """
-        from dataclasses import dataclass, replace
+        from dataclasses import replace
 
         original_function = tool.function
         agent_ref = self
-
-        @dataclass
-        class MockRunContext:
-            """Mock RunContext for MCP tool calls."""
-
-            deps: PlaywrightDeps
+        tool_name = tool.name
 
         async def wrapped_function(**kwargs: object) -> str:
-            """Wrapper that injects PlaywrightDeps context."""
+            """Wrapper that injects PlaywrightDeps context and logs invocation."""
+            logger.debug(
+                "[MCP Wrapper] Tool '%s' called with kwargs: %s",
+                tool_name,
+                list(kwargs.keys()),
+            )
             # Create deps and mock context
             deps = PlaywrightDeps(agent=agent_ref)
             mock_ctx = MockRunContext(deps=deps)
 
-            # Call original function with context
-            result = await original_function(mock_ctx, **kwargs)
-            return str(result)
+            # Ensure verbose logging is configured (lazy init)
+            ensure_verbose_logging_configured()
+
+            # Verbose mode output via member_agents logger (has handlers configured)
+            member_logger = logging.getLogger("mixseek.member_agents")
+            if is_verbose_mode():
+                params_str = ", ".join(
+                    f"{k}={str(v)[:PARAM_VALUE_MAX_LENGTH]}{'...' if len(str(v)) > PARAM_VALUE_MAX_LENGTH else ''}"
+                    for k, v in kwargs.items()
+                )[:PARAMS_SUMMARY_MAX_LENGTH]
+                member_logger.info("[MCP Tool Start] %s: %s", tool_name, params_str)
+
+            start_time = time.perf_counter()
+            status = "success"
+            result_str = ""
+            try:
+                result = await original_function(mock_ctx, **kwargs)
+                result_str = str(result)
+                return result_str
+            except Exception:
+                status = "error"
+                raise
+            finally:
+                execution_time_ms = int((time.perf_counter() - start_time) * 1000)
+
+                # Verbose mode output via member_agents logger
+                if is_verbose_mode():
+                    member_logger.info(
+                        "[MCP Tool Done] %s: %s in %dms",
+                        tool_name,
+                        status,
+                        execution_time_ms,
+                    )
+                    # Log result preview
+                    if result_str:
+                        preview = result_str[:RESULT_PREVIEW_MAX_LENGTH].replace(
+                            "\n", "\\n"
+                        )
+                        member_logger.info("[MCP Tool Result Preview] %s", preview)
+
+                # Log tool invocation via MemberAgentLogger
+                has_logger = hasattr(agent_ref, "logger")
+                has_method = has_logger and hasattr(
+                    agent_ref.logger, "log_tool_invocation"
+                )
+                logger.debug(
+                    "[MCP Wrapper] Logging check: has_logger=%s, has_method=%s",
+                    has_logger,
+                    has_method,
+                )
+                if has_logger and has_method:
+                    try:
+                        # Get execution_id - this might not be available for member agents
+                        # so we generate a placeholder if not present
+                        execution_id = getattr(
+                            agent_ref, "_current_execution_id", "mcp"
+                        )
+                        agent_ref.logger.log_tool_invocation(
+                            execution_id=execution_id,
+                            tool_name=tool_name,
+                            parameters=dict(kwargs),
+                            execution_time_ms=execution_time_ms,
+                            status=status,
+                        )
+                    except Exception as log_error:
+                        logger.warning(
+                            "Failed to log tool invocation for '%s': %s",
+                            tool_name,
+                            log_error,
+                            exc_info=True,
+                        )
 
         # Preserve function metadata
         wrapped_function.__name__ = original_function.__name__
         wrapped_function.__doc__ = original_function.__doc__
 
         # Create new tool with wrapped function
-        try:
-            return replace(tool, function=wrapped_function)  # type: ignore[type-var]
-        except TypeError:
-            # If replace doesn't work, create a simple wrapper
-            class ToolWrapper:
-                def __init__(
-                    self,
-                    original: ToolLike,
-                    wrapped_func: Callable[..., Awaitable[str]],
-                ) -> None:
-                    self._original = original
-                    self.function = wrapped_func
-                    self.name = original.name
-                    self.description = original.description
-
-                def __getattr__(self, name: str) -> object:
-                    return getattr(self._original, name)
-
-            return ToolWrapper(tool, wrapped_function)
+        return replace(tool, function=wrapped_function)  # type: ignore[type-var]
 
     def _create_deps(self) -> PlaywrightDeps:
         """Create dependencies for agent execution.

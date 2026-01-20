@@ -11,11 +11,11 @@ that are used by Leader/Evaluator/Judgment agents.
 from __future__ import annotations
 
 import logging
+import time
 from collections.abc import Callable, Coroutine, Mapping
 from contextvars import ContextVar
-from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Protocol
+from typing import TYPE_CHECKING
 
 from pydantic_ai.agent import Agent
 from pydantic_ai.models import Model
@@ -27,6 +27,17 @@ from mixseek.utils.env import get_workspace_for_config
 from mixseek_plus.presets import PresetError
 from mixseek_plus.providers import CLAUDECODE_PROVIDER_PREFIX, GROQ_PROVIDER_PREFIX
 from mixseek_plus.providers.claudecode import ClaudeCodeToolSettings
+from mixseek_plus.utils.constants import (
+    PARAM_VALUE_MAX_LENGTH,
+    PARAMS_SUMMARY_MAX_LENGTH,
+)
+from mixseek_plus.utils.verbose import (
+    MockRunContext,
+    ToolLike,
+    configure_verbose_logging_for_mode,
+    ensure_verbose_logging_configured,
+    is_verbose_mode,
+)
 
 if TYPE_CHECKING:
     from mixseek.agents.leader.config import TeamConfig
@@ -36,16 +47,88 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-class _ToolLike(Protocol):
-    """Protocol for objects that behave like pydantic-ai Tool.
+def enable_verbose_mode() -> None:
+    """Enable verbose mode by setting MIXSEEK_VERBOSE environment variable.
 
-    This protocol defines the minimal interface needed for MCP tool handling.
-    Both pydantic_ai.tools.Tool and our ToolWrapper class implement this interface.
+    This function sets MIXSEEK_VERBOSE=1 in the current process environment
+    and configures logging to show DEBUG level messages for member_agents.
+    Verbose mode enables detailed console and file logging for ClaudeCode agents,
+    including MCP tool call details.
+
+    Usage:
+        import mixseek_plus
+        mixseek_plus.enable_verbose_mode()
+        mixseek_plus.patch_core()
+
+        # Now ClaudeCode agents will output verbose logs
+        # Console output:
+        # [MCP Tool Start] fetch_page: url=https://example.com
+        # [MCP Tool Done] fetch_page: success in 1234ms
+        #
+        # File output ($WORKSPACE/logs/member-agent-YYYY-MM-DD.log):
+        # tool_invocation events with full details
+
+    Note:
+        - This is equivalent to setting MIXSEEK_VERBOSE=1 environment variable
+        - Affects only ClaudeCode agents (groq: and other providers are unaffected)
+        - Can be called before or after patch_core()
+        - Use disable_verbose_mode() to turn off verbose logging
+        - Configures mixseek.member_agents logger to DEBUG level
+
+    See Also:
+        - Issue #35: Unified verbose mode for all models (future work)
     """
+    import os
 
-    name: str
-    description: str | None
-    function: Callable[..., Coroutine[object, object, str]]
+    os.environ["MIXSEEK_VERBOSE"] = "1"
+
+    # Configure logging level for member_agents to show DEBUG messages
+    # This enables log_tool_invocation() output (which uses DEBUG level)
+    member_agents_logger = logging.getLogger("mixseek.member_agents")
+    member_agents_logger.setLevel(logging.DEBUG)
+
+    # Also set file handler level to DEBUG if it exists
+    for handler in member_agents_logger.handlers:
+        if hasattr(handler, "baseFilename"):  # FileHandler
+            handler.setLevel(logging.DEBUG)
+
+    logger.debug("Verbose mode enabled via enable_verbose_mode()")
+
+
+def disable_verbose_mode() -> None:
+    """Disable verbose mode by removing MIXSEEK_VERBOSE environment variable.
+
+    This function removes the MIXSEEK_VERBOSE environment variable from
+    the current process environment, disabling verbose logging for
+    ClaudeCode agents.
+
+    Usage:
+        import mixseek_plus
+        mixseek_plus.disable_verbose_mode()
+
+    Note:
+        - Safe to call even if verbose mode was never enabled
+        - Takes effect immediately for subsequent agent executions
+    """
+    import os
+
+    if "MIXSEEK_VERBOSE" in os.environ:
+        del os.environ["MIXSEEK_VERBOSE"]
+        logger.debug("Verbose mode disabled via disable_verbose_mode()")
+
+
+def _is_logfire_mode() -> bool:
+    """Check if Logfire mode is enabled via environment variable.
+
+    Logfire mode enables pydantic-ai auto-instrumentation for observability.
+
+    Returns:
+        True if MIXSEEK_LOGFIRE environment variable is set to '1' or 'true'
+        (case-insensitive), False otherwise.
+    """
+    import os
+
+    return os.getenv("MIXSEEK_LOGFIRE", "").lower() in ("1", "true")
 
 
 # ContextVar for TeamDependencies - used to pass deps to MCP tool calls
@@ -55,21 +138,6 @@ class _ToolLike(Protocol):
 _current_deps: ContextVar[TeamDependencies | None] = ContextVar(
     "_current_deps", default=None
 )
-
-
-@dataclass
-class _MockRunContext:
-    """Mock RunContext for MCP tool calls.
-
-    When tools are called via MCP, pydantic-ai's RunContext is not available.
-    This mock provides the minimal interface needed by tool functions that
-    access ctx.deps.
-
-    Attributes:
-        deps: The TeamDependencies instance for the current execution.
-    """
-
-    deps: TeamDependencies
 
 
 # Module-level state to track if patch has been applied
@@ -493,6 +561,9 @@ def patch_core() -> None:
             e,
         )
 
+    # Configure verbose logging if MIXSEEK_VERBOSE is set
+    configure_verbose_logging_for_mode()
+
     _PATCH_APPLIED = True
 
 
@@ -646,8 +717,10 @@ def _wrap_tool_function_for_mcp(
 
     This wrapper:
     1. Gets the current TeamDependencies from the contextvar
-    2. Creates a _MockRunContext with those deps
+    2. Creates a MockRunContext with those deps
     3. Injects it as the first argument to the original function
+    4. Measures execution time and logs via MemberAgentLogger (if available)
+    5. Outputs verbose console log if MIXSEEK_VERBOSE is enabled
 
     Args:
         original_func: The original tool function that expects ctx as first arg.
@@ -665,13 +738,64 @@ def _wrap_tool_function_for_mcp(
                 "Ensure leader_agent.run() is wrapped to set _current_deps."
             )
 
-        mock_ctx = _MockRunContext(deps=deps)
+        mock_ctx = MockRunContext(deps=deps)
         logger.debug(
             "[MCP Tool] Injecting context for tool '%s': execution_id=%s",
             tool_name,
             deps.execution_id,
         )
-        return await original_func(mock_ctx, **kwargs)
+
+        # Ensure verbose logging is configured (lazy init after handlers are created)
+        ensure_verbose_logging_configured()
+
+        # Verbose mode output via member_agents logger (has handlers configured)
+        member_logger = logging.getLogger("mixseek.member_agents")
+        if is_verbose_mode():
+            # Summarize parameters for output
+            params_str = ", ".join(
+                f"{k}={str(v)[:PARAM_VALUE_MAX_LENGTH]}{'...' if len(str(v)) > PARAM_VALUE_MAX_LENGTH else ''}"
+                for k, v in kwargs.items()
+            )[:PARAMS_SUMMARY_MAX_LENGTH]
+            member_logger.info("[MCP Tool Start] %s: %s", tool_name, params_str)
+
+        start_time = time.perf_counter()
+        status = "success"
+        try:
+            result = await original_func(mock_ctx, **kwargs)
+            return result
+        except Exception:
+            status = "error"
+            raise
+        finally:
+            execution_time_ms = int((time.perf_counter() - start_time) * 1000)
+
+            # Verbose mode output via member_agents logger (has handlers configured)
+            if is_verbose_mode():
+                member_logger.info(
+                    "[MCP Tool Done] %s: %s in %dms",
+                    tool_name,
+                    status,
+                    execution_time_ms,
+                )
+
+            # Log tool invocation via MemberAgentLogger if logger is available on deps
+            deps_logger = getattr(deps, "logger", None)
+            if deps_logger is not None and hasattr(deps_logger, "log_tool_invocation"):
+                try:
+                    deps_logger.log_tool_invocation(
+                        execution_id=deps.execution_id,
+                        tool_name=tool_name,
+                        parameters=dict(kwargs),
+                        execution_time_ms=execution_time_ms,
+                        status=status,
+                    )
+                except Exception as log_error:
+                    logger.warning(
+                        "Failed to log tool invocation for '%s': %s",
+                        tool_name,
+                        log_error,
+                        exc_info=True,
+                    )
 
     # Preserve function metadata (handle missing attributes gracefully)
     # Also handle Mock objects that may be used in tests
@@ -695,7 +819,7 @@ def _wrap_tool_function_for_mcp(
     return wrapped
 
 
-def _create_mcp_compatible_tool(tool: Tool[object]) -> _ToolLike:
+def _create_mcp_compatible_tool(tool: Tool[object]) -> ToolLike:
     """Create an MCP-compatible tool by wrapping the function.
 
     This creates a new tool-like object with the function wrapped
@@ -706,6 +830,9 @@ def _create_mcp_compatible_tool(tool: Tool[object]) -> _ToolLike:
 
     Returns:
         A modified tool object with wrapped function.
+
+    Raises:
+        TypeError: If dataclasses.replace() fails and wrapper creation also fails.
     """
     from dataclasses import replace
 
@@ -716,37 +843,8 @@ def _create_mcp_compatible_tool(tool: Tool[object]) -> _ToolLike:
 
     # Create a new tool with the wrapped function
     # pydantic_ai.tools.Tool is a dataclass, so we can use replace()
-    # Limit try block to only the replace() call to avoid catching unrelated TypeErrors
-    try:
-        new_tool = replace(tool, function=wrapped_function)
-    except TypeError as e:
-        # If replace doesn't work, try creating a simple wrapper object
-        logger.warning(
-            "Could not use dataclasses.replace() on tool '%s': %s. "
-            "Creating wrapper object instead.",
-            tool.name,
-            e,
-        )
-
-        class ToolWrapper:
-            """Wrapper that mimics pydantic-ai Tool interface."""
-
-            def __init__(
-                self,
-                original_tool: Tool[object],
-                wrapped_func: Callable[..., Coroutine[object, object, str]],
-            ) -> None:
-                self._original = original_tool
-                self.function = wrapped_func
-                self.name = original_tool.name
-                self.description = original_tool.description
-
-            def __getattr__(self, name: str) -> object:
-                return getattr(self._original, name)
-
-        return ToolWrapper(tool, wrapped_function)
-    else:
-        return new_tool
+    new_tool = replace(tool, function=wrapped_function)
+    return new_tool
 
 
 def _patch_leader_agent() -> None:

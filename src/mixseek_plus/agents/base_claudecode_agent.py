@@ -7,6 +7,7 @@ following the same pattern as BaseGroqAgent.
 from __future__ import annotations
 
 import logging
+import os
 import time
 from abc import abstractmethod
 from dataclasses import dataclass
@@ -16,6 +17,8 @@ from typing import cast
 from claudecode_model import CLIExecutionError, CLINotFoundError, CLIResponseParseError
 from pydantic_ai import Agent
 from pydantic_ai.models import Model
+
+from pydantic_ai.messages import ModelMessage
 
 from mixseek.agents.member.base import BaseMemberAgent
 from mixseek.models.member_agent import MemberAgentConfig, MemberAgentResult
@@ -27,6 +30,7 @@ from mixseek_plus.providers.claudecode import (
     create_claudecode_model,
 )
 from mixseek_plus.types import AgentMetadata, UsageInfo
+from mixseek_plus.utils.claudecode_logging import ClaudeCodeToolCallExtractor
 
 logger = logging.getLogger(__name__)
 
@@ -203,6 +207,58 @@ class BaseClaudeCodeAgent(BaseMemberAgent):
         # Default for other errors
         return (str(error), "EXECUTION_ERROR")
 
+    def _is_verbose_mode(self) -> bool:
+        """Check if verbose mode is enabled via environment variable.
+
+        Returns:
+            True if MIXSEEK_VERBOSE is set to '1' or 'true'
+        """
+        return os.getenv("MIXSEEK_VERBOSE", "").lower() in ("1", "true")
+
+    def _log_tool_calls_from_history(
+        self, execution_id: str, messages: list[ModelMessage]
+    ) -> None:
+        """Extract and log tool calls from pydantic-ai message history.
+
+        This method extracts ToolCallPart/ToolReturnPart from the message
+        history and logs each tool invocation via MemberAgentLogger.
+
+        Args:
+            execution_id: The execution ID for log correlation
+            messages: List of pydantic-ai ModelMessage objects
+        """
+        if not messages:
+            return
+
+        extractor = ClaudeCodeToolCallExtractor()
+        tool_calls = extractor.extract_tool_calls(messages)
+
+        for call in tool_calls:
+            # Verbose mode console output
+            if self._is_verbose_mode():
+                logger.info(
+                    "[Tool Call] %s: %s -> %s",
+                    call["tool_name"],
+                    call["args_summary"],
+                    call["status"],
+                )
+                if call["result_summary"]:
+                    logger.info(
+                        "[Tool Result] %s: %s",
+                        call["tool_name"],
+                        call["result_summary"][:100],
+                    )
+
+            # Log via MemberAgentLogger
+            # Note: execution_time_ms is not available from message history
+            self.logger.log_tool_invocation(
+                execution_id=execution_id,
+                tool_name=call["tool_name"],
+                parameters={"args_summary": call["args_summary"]},
+                execution_time_ms=0,  # Not available from history
+                status=call["status"],
+            )
+
     @abstractmethod
     def _get_agent(self) -> Agent[ClaudeCodeAgentDeps, str]:
         """Get the Pydantic AI agent instance.
@@ -315,6 +371,9 @@ class BaseClaudeCodeAgent(BaseMemberAgent):
                 metadata=metadata_dict,
                 all_messages=all_messages,
             )
+
+            # Log tool calls from message history (FR-001, FR-009)
+            self._log_tool_calls_from_history(execution_id, all_messages)
 
             # Log completion
             self.logger.log_execution_complete(
