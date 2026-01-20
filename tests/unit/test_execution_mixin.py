@@ -120,13 +120,14 @@ class TestExtractUsageInfo:
 
         usage_info = agent._extract_usage_info(mock_result)
 
+        assert usage_info is not None
         assert usage_info["total_tokens"] == 100
         assert usage_info["prompt_tokens"] == 60
         assert usage_info["completion_tokens"] == 40
         assert usage_info["requests"] == 1
 
     def test_extract_usage_info_without_usage(self) -> None:
-        """MIX-001: _extract_usage_info returns empty dict when no usage."""
+        """MIX-001: _extract_usage_info returns None when no usage attribute."""
         agent = ConcreteAgentWithMixin()
 
         # Create mock result without usage attribute
@@ -134,7 +135,7 @@ class TestExtractUsageInfo:
 
         usage_info = agent._extract_usage_info(mock_result)
 
-        assert usage_info == {}
+        assert usage_info is None
 
     def test_extract_usage_info_with_partial_fields(self) -> None:
         """MIX-001: _extract_usage_info handles partial usage data."""
@@ -149,6 +150,7 @@ class TestExtractUsageInfo:
 
         usage_info = agent._extract_usage_info(mock_result)
 
+        assert usage_info is not None
         assert usage_info["total_tokens"] == 50
         assert usage_info["prompt_tokens"] is None
         assert usage_info["completion_tokens"] is None

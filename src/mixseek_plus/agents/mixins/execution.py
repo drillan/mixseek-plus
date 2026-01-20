@@ -68,26 +68,27 @@ class PydanticAgentExecutorMixin:
     - _handle_execution_error(): Handle exceptions with agent-specific logic
     """
 
-    def _extract_usage_info(self, result: object) -> UsageInfo:
+    def _extract_usage_info(self, result: object) -> UsageInfo | None:
         """Extract usage information from Pydantic AI result.
 
         Args:
             result: The result from agent.run()
 
         Returns:
-            UsageInfo TypedDict with token counts
+            UsageInfo TypedDict with token counts, or None if unavailable.
+            None is returned when the model provider does not provide usage
+            information, which is a valid scenario per UsageInfo design.
         """
-        usage_info: UsageInfo = {}
-        if hasattr(result, "usage"):
-            usage_func = getattr(result, "usage")
-            usage = usage_func()
-            usage_info = UsageInfo(
-                total_tokens=getattr(usage, "total_tokens", None),
-                prompt_tokens=getattr(usage, "prompt_tokens", None),
-                completion_tokens=getattr(usage, "completion_tokens", None),
-                requests=getattr(usage, "requests", None),
-            )
-        return usage_info
+        if not hasattr(result, "usage"):
+            return None
+        usage_func = getattr(result, "usage")
+        usage = usage_func()
+        return UsageInfo(
+            total_tokens=getattr(usage, "total_tokens", None),
+            prompt_tokens=getattr(usage, "prompt_tokens", None),
+            completion_tokens=getattr(usage, "completion_tokens", None),
+            requests=getattr(usage, "requests", None),
+        )
 
     @abstractmethod
     def _build_agent_metadata(

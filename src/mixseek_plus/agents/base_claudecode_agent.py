@@ -337,7 +337,8 @@ class BaseClaudeCodeAgent(BaseMemberAgent):
             execution_time_ms = int((time.time() - start_time) * 1000)
 
             # Extract usage information if available
-            usage_info: UsageInfo = {}
+            # Returns None when model provider does not provide usage info
+            usage_info: UsageInfo | None = None
             if hasattr(result, "usage"):
                 usage = result.usage()
                 usage_info = UsageInfo(
