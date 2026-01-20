@@ -99,11 +99,11 @@ system_prompt = "ClaudeCodeとTavily検索を組み合わせたリサーチャ�
 
 #### Tavilyツール
 
-| ツール | 機能 |
-|--------|------|
-| `tavily_search` | Web検索（詳細度・結果数調整可能） |
-| `tavily_extract` | URL群からコンテンツ抽出 |
-| `tavily_context` | RAG用コンテキスト生成 |
+| ツール | 機能 | 主要パラメータ |
+|--------|------|--------------|
+| `tavily_search` | Web検索 | `query`, `search_depth` (basic/advanced), `max_results` (1-20) |
+| `tavily_extract` | URL群からコンテンツ抽出 | `urls` (最大20件) |
+| `tavily_context` | RAG用コンテキスト生成 | `query`, `max_tokens` |
 
 ### Playwright Webフェッチャー
 

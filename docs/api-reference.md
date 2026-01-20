@@ -243,6 +243,29 @@ register_playwright_agents()
 # これでTOML設定でplaywright_markdown_fetchが使用可能
 ```
 
+### register_tavily_agents
+
+```python
+def register_tavily_agents() -> None
+```
+
+Tavilyエージェントを `MemberAgentFactory` に登録します。
+TOML設定で `tavily_search` および `claudecode_tavily_search` タイプを使用する前に呼び出す必要があります。
+
+**前提条件**: 環境変数 `TAVILY_API_KEY` が設定されていること。
+
+この関数はべき等であり、複数回呼び出しても安全です。
+
+**使用例**
+
+```python
+from mixseek_plus import register_tavily_agents
+
+register_tavily_agents()
+
+# これでTOML設定でtavily_search/claudecode_tavily_searchが使用可能
+```
+
 ### GroqPlainAgent
 
 ```python
@@ -463,6 +486,88 @@ async def main():
 asyncio.run(main())
 ```
 
+### GroqTavilySearchAgent
+
+```python
+class GroqTavilySearchAgent(TavilyToolsRepositoryMixin, BaseGroqAgent)
+```
+
+Groqモデル + Tavilyツールを組み合わせたMemberエージェントです。
+`GROQ_API_KEY` と `TAVILY_API_KEY` の両方が必要です。
+
+**コンストラクタ**
+
+```python
+def __init__(self, config: MemberAgentConfig) -> None
+```
+
+| 引数 | 型 | 説明 |
+|------|-----|------|
+| `config` | `MemberAgentConfig` | エージェント設定 |
+
+**例外**
+
+- `ValueError`: 認証に失敗した場合（APIキー未設定など）
+
+**ツール**
+
+| ツール名 | 説明 |
+|---------|------|
+| `tavily_search` | Web検索を実行 |
+| `tavily_extract` | URL群からコンテンツを抽出 |
+| `tavily_context` | RAG用検索コンテキストを取得 |
+
+**使用例（TOML）**
+
+```toml
+[[members]]
+name = "tavily-researcher"
+type = "tavily_search"
+model = "groq:llama-3.3-70b-versatile"
+system_prompt = "You are a helpful research assistant."
+```
+
+### ClaudeCodeTavilySearchAgent
+
+```python
+class ClaudeCodeTavilySearchAgent(TavilyToolsRepositoryMixin, BaseClaudeCodeAgent)
+```
+
+ClaudeCodeモデル + Tavilyツールを組み合わせたMemberエージェントです。
+`TAVILY_API_KEY` が必要です（ClaudeCodeはAPIキー不要）。
+
+**コンストラクタ**
+
+```python
+def __init__(self, config: MemberAgentConfig) -> None
+```
+
+| 引数 | 型 | 説明 |
+|------|-----|------|
+| `config` | `MemberAgentConfig` | エージェント設定 |
+
+**例外**
+
+- `ValueError`: 認証に失敗した場合（TAVILY_API_KEY未設定など）
+
+**ツール**
+
+| ツール名 | 説明 |
+|---------|------|
+| `tavily_search` | Web検索を実行 |
+| `tavily_extract` | URL群からコンテンツを抽出 |
+| `tavily_context` | RAG用検索コンテキストを取得 |
+
+**使用例（TOML）**
+
+```toml
+[[members]]
+name = "claudecode-tavily-researcher"
+type = "claudecode_tavily_search"
+model = "claudecode:claude-sonnet-4-5"
+system_prompt = "You are a helpful research assistant."
+```
+
 ## Exceptions
 
 ### ModelCreationError
@@ -668,3 +773,58 @@ try:
     result = await agent.execute("PDFファイルを取得して")
 except ConversionError as e:
     print(f"変換失敗: {e.url}")
+```
+
+### TavilyAPIError
+
+```python
+class TavilyAPIError(Exception)
+```
+
+Tavily API呼び出しエラーを表す例外です。`tavily_search`、`claudecode_tavily_search` エージェントの使用時に発生する可能性があります。
+
+**属性**
+
+| 名前 | 型 | 説明 |
+|------|-----|------|
+| `message` | `str` | エラーメッセージ |
+| `status_code` | `int \| None` | HTTPステータスコード（該当する場合） |
+| `error_type` | `TavilyErrorType` | エラータイプ |
+| `is_retryable` | `bool` | リトライ可能かどうか |
+
+**TavilyErrorType**
+
+| タイプ | 説明 | リトライ可能 |
+|--------|------|------------|
+| `AUTH_ERROR` | 認証エラー（無効なAPIキー） | No |
+| `VALIDATION_ERROR` | バリデーションエラー | No |
+| `RATE_LIMIT_ERROR` | レート制限エラー | Yes |
+| `SERVER_ERROR` | サーバーエラー (500, 502, 504) | Yes |
+| `SERVICE_UNAVAILABLE` | サービス利用不可 (503) | Yes |
+| `TIMEOUT_ERROR` | タイムアウト | Yes |
+| `RETRY_EXHAUSTED` | 全リトライ失敗 | No |
+| `API_ERROR` | その他のAPIエラー | No |
+
+**コンストラクタ**
+
+```python
+def __init__(
+    self,
+    message: str,
+    status_code: int | None = None,
+    error_type: TavilyErrorType = "API_ERROR",
+) -> None
+```
+
+**使用例**
+
+```python
+from mixseek_plus import TavilyAPIError
+
+try:
+    result = await agent.execute("最新ニュースを検索して")
+except TavilyAPIError as e:
+    if e.is_retryable:
+        print(f"リトライ可能なエラー: {e.error_type}")
+    else:
+        print(f"致命的エラー: {e.message}")

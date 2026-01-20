@@ -57,6 +57,7 @@ model = create_model("anthropic:claude-sonnet-4-5-20250929")
 
 mixseek-plusは、以下のMemberエージェントを提供します:
 - Groq: `groq_plain`、`groq_web_search`
+- Tavily検索: `tavily_search`（Groq版）、`claudecode_tavily_search`（ClaudeCode版）
 - ClaudeCode: `claudecode_plain`
 - Playwright: `playwright_markdown_fetch`（Web Fetcher）
 
@@ -65,7 +66,12 @@ mixseek-plusは、以下のMemberエージェントを提供します:
 TOML設定でエージェントを使用する前に、登録が必要です。
 
 ```python
-from mixseek_plus import register_groq_agents, register_claudecode_agents, register_playwright_agents
+from mixseek_plus import (
+    register_groq_agents,
+    register_claudecode_agents,
+    register_playwright_agents,
+    register_tavily_agents,
+)
 
 # Groqエージェントを登録
 register_groq_agents()
@@ -75,6 +81,9 @@ register_claudecode_agents()
 
 # Playwrightエージェントを登録（要: pip install mixseek-plus[playwright]）
 register_playwright_agents()
+
+# Tavilyエージェントを登録
+register_tavily_agents()
 ```
 
 ### Groq Memberエージェント
@@ -102,6 +111,67 @@ type = "groq_web_search"
 model = "groq:llama-3.3-70b-versatile"
 system_instruction = "あなたは情報収集のスペシャリストです。"
 ```
+
+### Tavily検索エージェント
+
+Tavily APIを使用したWeb検索、コンテンツ抽出、RAGコンテキスト生成が可能なエージェントです。
+Groq版とClaudeCode版の2種類があります。
+
+> **Note**: `TAVILY_API_KEY` 環境変数が必要です。
+
+#### GroqTavilySearchAgent
+
+Groqの高速推論とTavily検索機能を組み合わせたエージェントです。
+
+```toml
+[[members]]
+name = "tavily-researcher"
+type = "tavily_search"
+model = "groq:llama-3.3-70b-versatile"
+system_prompt = """
+リサーチアシスタントです。以下のツールを使用:
+- tavily_search: Web検索
+- tavily_extract: URL群からコンテンツ抽出
+- tavily_context: RAG用コンテキスト生成
+"""
+temperature = 0.3
+max_tokens = 4000
+```
+
+#### ClaudeCodeTavilySearchAgent
+
+ClaudeCodeの強力な推論能力とTavily検索機能を組み合わせたエージェントです。
+
+```toml
+[[members]]
+name = "claudecode-tavily-researcher"
+type = "claudecode_tavily_search"
+model = "claudecode:claude-sonnet-4-5"
+system_prompt = "ClaudeCodeとTavily検索を組み合わせたリサーチャーです。"
+```
+
+#### Tavilyツール詳細
+
+**tavily_search - Web検索**
+
+| パラメータ | 型 | デフォルト | 説明 |
+|-----------|---|----------|------|
+| `query` | `str` | 必須 | 検索クエリ |
+| `search_depth` | `str` | `"basic"` | 検索詳細度 (`basic` または `advanced`) |
+| `max_results` | `int` | `5` | 結果数 (1-20) |
+
+**tavily_extract - コンテンツ抽出**
+
+| パラメータ | 型 | 説明 |
+|-----------|---|------|
+| `urls` | `list[str]` | 抽出対象URL群（最大20件） |
+
+**tavily_context - RAGコンテキスト**
+
+| パラメータ | 型 | デフォルト | 説明 |
+|-----------|---|----------|------|
+| `query` | `str` | 必須 | 検索クエリ |
+| `max_tokens` | `int` | `None` | 最大トークン数 |
 
 ### ClaudeCode Memberエージェント
 
@@ -599,6 +669,26 @@ export TAVILY_API_KEY="your-tavily-api-key"
 ```
 
 ClaudeCodeはWebSearch/WebFetchツールが組み込まれているため、Tavily APIキーは不要です。
+
+### TavilyAPIError
+
+Tavily API呼び出しでエラーが発生した場合のトラブルシューティング。
+
+#### 認証エラー (AUTH_ERROR)
+
+Tavily APIキーが無効または未設定です。
+
+```bash
+export TAVILY_API_KEY="tvly-xxxxxxxxxxxx"
+```
+
+#### レート制限エラー (RATE_LIMIT_ERROR)
+
+API呼び出しのレート制限に達しました。エージェントは自動的にリトライ（最大3回、指数バックオフ）を行います。
+
+#### サーバーエラー (SERVER_ERROR, SERVICE_UNAVAILABLE)
+
+Tavily APIサーバーに問題が発生しています。時間をおいて再試行してください。
 
 ### プリセットが適用されない
 
