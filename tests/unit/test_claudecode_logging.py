@@ -1,34 +1,37 @@
-"""ClaudeCodeToolCallExtractor の単体テスト.
+"""PydanticAIToolCallExtractor の単体テスト.
 
 US2: Verboseモードでの詳細ログ確認
-T013: ClaudeCodeToolCallExtractor.extract_tool_calls() のテスト
+T013: PydanticAIToolCallExtractor.extract_tool_calls() のテスト
 """
 
 from unittest.mock import MagicMock
 
+from mixseek_plus.utils.tool_logging import (
+    ClaudeCodeToolCallExtractor,
+    PydanticAIToolCallExtractor,
+)
 
-class TestClaudeCodeToolCallExtractor:
-    """ClaudeCodeToolCallExtractor のテスト."""
+
+class TestPydanticAIToolCallExtractor:
+    """PydanticAIToolCallExtractor のテスト."""
 
     def test_extractor_class_exists(self) -> None:
-        """ClaudeCodeToolCallExtractor クラスが存在することを確認."""
-        from mixseek_plus.utils.claudecode_logging import ClaudeCodeToolCallExtractor
+        """PydanticAIToolCallExtractor クラスが存在することを確認."""
+        assert PydanticAIToolCallExtractor is not None
 
-        assert ClaudeCodeToolCallExtractor is not None
+    def test_backward_compatibility_alias(self) -> None:
+        """ClaudeCodeToolCallExtractor が後方互換エイリアスとして存在することを確認."""
+        assert ClaudeCodeToolCallExtractor is PydanticAIToolCallExtractor
 
     def test_extract_tool_calls_empty_messages(self) -> None:
         """空のメッセージリストから空のリストを返す."""
-        from mixseek_plus.utils.claudecode_logging import ClaudeCodeToolCallExtractor
-
-        extractor = ClaudeCodeToolCallExtractor()
+        extractor = PydanticAIToolCallExtractor()
         result = extractor.extract_tool_calls([])
         assert result == []
 
     def test_extract_tool_calls_from_tool_call_part(self) -> None:
         """ToolCallPart からツール呼び出し情報を抽出する."""
         from pydantic_ai.messages import ModelRequest, ToolCallPart
-
-        from mixseek_plus.utils.claudecode_logging import ClaudeCodeToolCallExtractor
 
         # Create a mock ToolCallPart
         tool_call = ToolCallPart(
@@ -42,7 +45,7 @@ class TestClaudeCodeToolCallExtractor:
         request = MagicMock(spec=ModelRequest)
         request.parts = [tool_call]
 
-        extractor = ClaudeCodeToolCallExtractor()
+        extractor = PydanticAIToolCallExtractor()
         result = extractor.extract_tool_calls([request])
 
         assert len(result) == 1
@@ -59,8 +62,6 @@ class TestClaudeCodeToolCallExtractor:
             ToolCallPart,
             ToolReturnPart,
         )
-
-        from mixseek_plus.utils.claudecode_logging import ClaudeCodeToolCallExtractor
 
         tool_call = ToolCallPart(
             tool_name="fetch_page",
@@ -80,7 +81,7 @@ class TestClaudeCodeToolCallExtractor:
         response = MagicMock(spec=ModelResponse)
         response.parts = [tool_return]
 
-        extractor = ClaudeCodeToolCallExtractor()
+        extractor = PydanticAIToolCallExtractor()
         result = extractor.extract_tool_calls([request, response])
 
         assert len(result) == 1
@@ -91,9 +92,7 @@ class TestClaudeCodeToolCallExtractor:
 
     def test_summarize_args_truncates_long_strings(self) -> None:
         """_summarize_args は100文字を超える引数を切り詰める."""
-        from mixseek_plus.utils.claudecode_logging import ClaudeCodeToolCallExtractor
-
-        extractor = ClaudeCodeToolCallExtractor()
+        extractor = PydanticAIToolCallExtractor()
 
         long_args = {"url": "a" * 150}
         result = extractor._summarize_args(long_args)
@@ -103,9 +102,7 @@ class TestClaudeCodeToolCallExtractor:
 
     def test_summarize_result_truncates_long_strings(self) -> None:
         """_summarize_result は200文字を超える結果を切り詰める."""
-        from mixseek_plus.utils.claudecode_logging import ClaudeCodeToolCallExtractor
-
-        extractor = ClaudeCodeToolCallExtractor()
+        extractor = PydanticAIToolCallExtractor()
 
         long_result = "b" * 300
         result = extractor._summarize_result(long_result)
@@ -121,8 +118,6 @@ class TestClaudeCodeToolCallExtractor:
             ToolCallPart,
             ToolReturnPart,
         )
-
-        from mixseek_plus.utils.claudecode_logging import ClaudeCodeToolCallExtractor
 
         tool_call = ToolCallPart(
             tool_name="fetch_page",
@@ -143,7 +138,7 @@ class TestClaudeCodeToolCallExtractor:
         response = MagicMock(spec=ModelResponse)
         response.parts = [tool_return]
 
-        extractor = ClaudeCodeToolCallExtractor()
+        extractor = PydanticAIToolCallExtractor()
         result = extractor.extract_tool_calls([request, response])
 
         assert len(result) == 1

@@ -4,6 +4,7 @@ This module implements a custom Member Agent that uses Groq models
 with Web Search capability via Tavily API.
 """
 
+import time
 from dataclasses import dataclass
 from typing import Any
 
@@ -16,6 +17,7 @@ from mixseek.models.member_agent import MemberAgentConfig
 from mixseek_plus.agents.base_groq_agent import BaseGroqAgent
 from mixseek_plus.errors import ModelCreationError
 from mixseek_plus.providers.tavily import validate_tavily_credentials
+from mixseek_plus.utils.verbose import log_verbose_tool_done, log_verbose_tool_start
 
 
 class TavilySearchError(Exception):
@@ -120,10 +122,39 @@ class GroqWebSearchAgent(BaseGroqAgent):
             Raises:
                 TavilySearchError: If the search fails
             """
+            # Log tool start in verbose mode
+            log_verbose_tool_start("web_search", {"query": query})
+
+            start_time = time.perf_counter()
+            status = "success"
+            result_str = ""
+
             client = ctx.deps.tavily_client
             try:
                 results = await client.search(query)
+
+                # Format results for LLM consumption
+                result_items = results.get("results", [])
+                if not result_items:
+                    result_str = "No results found"
+                else:
+                    formatted = []
+                    for result in result_items:
+                        if not isinstance(result, dict):
+                            continue
+                        formatted.append(
+                            f"Title: {result.get('title', 'N/A')}\n"
+                            f"URL: {result.get('url', 'N/A')}\n"
+                            f"Content: {result.get('content', 'N/A')}\n"
+                        )
+                    result_str = (
+                        "\n---\n".join(formatted) if formatted else "No results found"
+                    )
+
+                return result_str
+
             except HTTPStatusError as e:
+                status = "error"
                 status_code = e.response.status_code
                 if status_code == 401:
                     raise TavilySearchError(
@@ -141,26 +172,20 @@ class GroqWebSearchAgent(BaseGroqAgent):
                         original_error=e,
                     ) from e
             except Exception as e:
+                status = "error"
                 raise TavilySearchError(
                     f"Tavily search failed: {e}",
                     original_error=e,
                 ) from e
-
-            # Format results for LLM consumption
-            result_items = results.get("results", [])
-            if not result_items:
-                return "No results found"
-
-            formatted = []
-            for result in result_items:
-                if not isinstance(result, dict):
-                    continue
-                formatted.append(
-                    f"Title: {result.get('title', 'N/A')}\n"
-                    f"URL: {result.get('url', 'N/A')}\n"
-                    f"Content: {result.get('content', 'N/A')}\n"
+            finally:
+                execution_time_ms = int((time.perf_counter() - start_time) * 1000)
+                # Log tool completion in verbose mode
+                log_verbose_tool_done(
+                    "web_search",
+                    status,
+                    execution_time_ms,
+                    result_preview=result_str if result_str else None,
                 )
-            return "\n---\n".join(formatted) if formatted else "No results found"
 
     def _get_agent(self) -> Agent[Any, str]:
         """Get the Pydantic AI agent instance.

@@ -6,17 +6,26 @@ in execute() and related methods across BaseGroqAgent and BasePlaywrightAgent.
 
 from __future__ import annotations
 
+import logging
 import time
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Protocol, cast
 
 from mixseek.models.member_agent import MemberAgentConfig, MemberAgentResult
 from pydantic_ai import Agent
+from pydantic_ai.messages import ModelMessage
 
 from mixseek_plus.types import UsageInfo
+from mixseek_plus.utils.tool_logging import PydanticAIToolCallExtractor
+from mixseek_plus.utils.verbose import (
+    log_verbose_tool_done,
+    log_verbose_tool_start,
+)
 
 if TYPE_CHECKING:
     from mixseek.utils.logging import MemberAgentLogger
+
+logger = logging.getLogger(__name__)
 
 
 class AgentProtocol(Protocol):
@@ -69,6 +78,45 @@ class PydanticAgentExecutorMixin(ABC):
     - _build_agent_metadata(): Return agent-specific metadata
     - _handle_execution_error(): Handle exceptions with agent-specific logic
     """
+
+    def _log_tool_calls_if_verbose(
+        self: AgentProtocol,
+        execution_id: str,
+        messages: list[ModelMessage],
+    ) -> None:
+        """Extract and log tool calls from message history in verbose mode.
+
+        Uses ClaudeCodeToolCallExtractor to extract tool call info from
+        pydantic-ai message history and logs via verbose helpers.
+
+        Args:
+            execution_id: The execution ID for log correlation.
+            messages: List of pydantic-ai ModelMessage objects.
+        """
+        if not messages:
+            return
+
+        extractor = PydanticAIToolCallExtractor()
+        tool_calls = extractor.extract_tool_calls(messages)
+
+        for call in tool_calls:
+            # Log via verbose helpers (checks is_verbose_mode internally)
+            log_verbose_tool_start(call["tool_name"], {"args": call["args_summary"]})
+            log_verbose_tool_done(
+                call["tool_name"],
+                call["status"],
+                0,  # execution_time_ms not available from history
+                result_preview=call["result_summary"],
+            )
+
+            # Always log via MemberAgentLogger (file logging)
+            self.logger.log_tool_invocation(
+                execution_id=execution_id,
+                tool_name=call["tool_name"],
+                parameters={"args_summary": call["args_summary"]},
+                execution_time_ms=0,  # Not available from history
+                status=call["status"],
+            )
 
     def _extract_usage_info(self, result: object) -> UsageInfo | None:
         """Extract usage information from Pydantic AI result.
@@ -203,6 +251,11 @@ class PydanticAgentExecutorMixin(ABC):
                 metadata=metadata,
                 all_messages=all_messages,
             )
+
+            # Log tool calls from message history (verbose + file logging)
+            # Note: type ignore needed because mixin pattern with self: AgentProtocol
+            # confuses mypy when called via PydanticAgentExecutorMixin cast
+            mixin_self._log_tool_calls_if_verbose(execution_id, all_messages)  # type: ignore[misc]
 
             # Log completion
             self.logger.log_execution_complete(
