@@ -30,15 +30,14 @@ from mixseek_plus.errors import (
     PlaywrightNotInstalledError,
 )
 from mixseek_plus.model_factory import create_model
-from mixseek_plus.types import PlaywrightAgentMetadata
+from mixseek_plus.types import PlaywrightAgentMetadata, WaitForLoadState
 
 if TYPE_CHECKING:
     from playwright.async_api import Browser, Page, Playwright, Route
 
 logger = logging.getLogger(__name__)
 
-# Type aliases for Playwright settings
-WaitForLoadState = Literal["load", "domcontentloaded", "networkidle"]
+# Type alias for Playwright resource types
 ResourceType = Literal[
     "document",
     "stylesheet",

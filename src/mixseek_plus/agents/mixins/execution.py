@@ -7,13 +7,16 @@ in execute() and related methods across BaseGroqAgent and BasePlaywrightAgent.
 from __future__ import annotations
 
 import time
-from abc import abstractmethod
-from typing import Protocol, cast
+from abc import ABC, abstractmethod
+from typing import TYPE_CHECKING, Protocol, cast
 
 from mixseek.models.member_agent import MemberAgentConfig, MemberAgentResult
 from pydantic_ai import Agent
 
 from mixseek_plus.types import UsageInfo
+
+if TYPE_CHECKING:
+    from mixseek.utils.logging import MemberAgentLogger
 
 
 class AgentProtocol(Protocol):
@@ -39,11 +42,10 @@ class AgentProtocol(Protocol):
         ...
 
     @property
-    def logger(self) -> object:
+    def logger(self) -> MemberAgentLogger:
         """Logger instance for execution logging.
 
-        Returns MemberAgentLogger from mixseek.agents.member.logging.
-        Using object type to avoid import dependency.
+        Returns MemberAgentLogger from mixseek.utils.logging.
         """
         ...
 
@@ -56,7 +58,7 @@ class AgentProtocol(Protocol):
         ...
 
 
-class PydanticAgentExecutorMixin:
+class PydanticAgentExecutorMixin(ABC):
     """Mixin providing common Pydantic AI agent execution logic.
 
     This mixin extracts the shared execution flow from BaseGroqAgent and
@@ -149,8 +151,7 @@ class PydanticAgentExecutorMixin:
         start_time = time.time()
 
         # Log execution start
-        # Type ignore: logger is MemberAgentLogger but typed as object in Protocol
-        execution_id = self.logger.log_execution_start(  # type: ignore[attr-defined]
+        execution_id = self.logger.log_execution_start(
             agent_name=self.agent_name,
             agent_type=self.agent_type,
             task=task,
@@ -204,15 +205,18 @@ class PydanticAgentExecutorMixin:
             )
 
             # Log completion
-            # Type ignore: logger is MemberAgentLogger but typed as object in Protocol
-            self.logger.log_execution_complete(  # type: ignore[attr-defined]
+            self.logger.log_execution_complete(
                 execution_id=execution_id, result=result_obj, usage_info=usage_dict
             )
 
             return result_obj
 
+        except (TypeError, AttributeError, NameError):
+            # Re-raise programming errors to aid debugging
+            # These indicate bugs in the code, not runtime issues
+            raise
         except Exception as e:
-            # Delegate to subclass-specific error handling
+            # Delegate runtime errors to subclass-specific error handling
             mixin_self = cast(PydanticAgentExecutorMixin, self)
             return mixin_self._handle_execution_error(
                 e, task, kwargs, execution_id, start_time

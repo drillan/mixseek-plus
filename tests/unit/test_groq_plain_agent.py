@@ -210,7 +210,7 @@ class TestGroqPlainAgentExecute:
             result = await agent.execute("Hello")
 
         assert result.status == ResultStatus.ERROR
-        assert result.error_code == "EXECUTION_ERROR"
+        assert result.error_code == "RUNTIME_ERROR"
         assert result.error_message is not None
         assert "Rate limit exceeded" in result.error_message
 

@@ -6,7 +6,6 @@ eliminating code duplication between GroqPlainAgent and GroqWebSearchAgent.
 
 import time
 from abc import abstractmethod
-from typing import Any
 
 from httpx import HTTPStatusError
 from pydantic_ai import Agent, IncompleteToolCall
@@ -93,15 +92,35 @@ class BaseGroqAgent(BaseMemberAgent, PydanticAgentExecutorMixin):
         if isinstance(error, HTTPStatusError):
             status_code = error.response.status_code
 
-            if status_code == 401:
+            if status_code == 400:
+                return (
+                    f"Groq API bad request: {error}",
+                    "BAD_REQUEST_ERROR",
+                )
+            elif status_code == 401:
                 return (
                     "Groq API authentication failed. Please check your GROQ_API_KEY.",
                     "AUTH_ERROR",
+                )
+            elif status_code == 403:
+                return (
+                    f"Groq API access forbidden: {error}",
+                    "FORBIDDEN_ERROR",
+                )
+            elif status_code == 404:
+                return (
+                    f"Groq API resource not found: {error}",
+                    "NOT_FOUND_ERROR",
                 )
             elif status_code == 429:
                 return (
                     "Groq API rate limit exceeded. Please wait and retry.",
                     "RATE_LIMIT_ERROR",
+                )
+            elif status_code in (500, 502, 504):
+                return (
+                    f"Groq API server error (HTTP {status_code}). Please try again later.",
+                    "SERVER_ERROR",
                 )
             elif status_code == 503:
                 return (
@@ -111,14 +130,14 @@ class BaseGroqAgent(BaseMemberAgent, PydanticAgentExecutorMixin):
             else:
                 return (
                     f"Groq API error (HTTP {status_code}): {error}",
-                    "EXECUTION_ERROR",
+                    "API_ERROR",
                 )
 
         # Default for non-HTTP errors
-        return (str(error), "EXECUTION_ERROR")
+        return (str(error), "RUNTIME_ERROR")
 
     @abstractmethod
-    def _get_agent(self) -> Agent[Any, str]:
+    def _get_agent(self) -> Agent[object, str]:
         """Get the Pydantic AI agent instance.
 
         Returns:
