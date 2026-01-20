@@ -11,6 +11,8 @@ that are used by Leader/Evaluator/Judgment agents.
 from __future__ import annotations
 
 import logging
+import os
+import time
 from collections.abc import Callable, Coroutine, Mapping
 from contextvars import ContextVar
 from dataclasses import dataclass
@@ -34,6 +36,133 @@ if TYPE_CHECKING:
     from mixseek.config.schema import TeamSettings
 
 logger = logging.getLogger(__name__)
+
+
+def _is_verbose_mode() -> bool:
+    """Check if verbose mode is enabled via environment variable.
+
+    Verbose mode enables detailed console logging for debugging purposes.
+
+    Returns:
+        True if MIXSEEK_VERBOSE environment variable is set to '1' or 'true'
+        (case-insensitive), False otherwise.
+    """
+    return os.getenv("MIXSEEK_VERBOSE", "").lower() in ("1", "true")
+
+
+def enable_verbose_mode() -> None:
+    """Enable verbose mode by setting MIXSEEK_VERBOSE environment variable.
+
+    This function sets MIXSEEK_VERBOSE=1 in the current process environment
+    and configures logging to show DEBUG level messages for member_agents.
+    Verbose mode enables detailed console and file logging for ClaudeCode agents,
+    including MCP tool call details and result previews.
+
+    Usage:
+        import mixseek_plus
+        mixseek_plus.enable_verbose_mode()
+        mixseek_plus.patch_core()
+
+        # Now ClaudeCode agents will output verbose logs
+        # Console output:
+        # [MCP Tool Start] fetch_page: url=https://example.com
+        # [MCP Tool Done] fetch_page: success in 1234ms
+        # [MCP Tool Result Preview] # Example Page\\n\\nThis is...
+        #
+        # File output ($WORKSPACE/logs/member-agent-YYYY-MM-DD.log):
+        # tool_invocation events with full details
+
+    Note:
+        - This is equivalent to setting MIXSEEK_VERBOSE=1 environment variable
+        - Affects only ClaudeCode agents (groq: and other providers are unaffected)
+        - Can be called before or after patch_core()
+        - Use disable_verbose_mode() to turn off verbose logging
+        - Configures mixseek.member_agents logger to DEBUG level
+
+    See Also:
+        - Issue #35: Unified verbose mode for all models (future work)
+    """
+    os.environ["MIXSEEK_VERBOSE"] = "1"
+
+    # Configure logging level for member_agents to show DEBUG messages
+    # This enables log_tool_invocation() output (which uses DEBUG level)
+    member_agents_logger = logging.getLogger("mixseek.member_agents")
+    member_agents_logger.setLevel(logging.DEBUG)
+
+    # Also set file handler level to DEBUG if it exists
+    for handler in member_agents_logger.handlers:
+        if hasattr(handler, "baseFilename"):  # FileHandler
+            handler.setLevel(logging.DEBUG)
+
+    logger.debug("Verbose mode enabled via enable_verbose_mode()")
+
+
+def disable_verbose_mode() -> None:
+    """Disable verbose mode by removing MIXSEEK_VERBOSE environment variable.
+
+    This function removes the MIXSEEK_VERBOSE environment variable from
+    the current process environment, disabling verbose logging for
+    ClaudeCode agents.
+
+    Usage:
+        import mixseek_plus
+        mixseek_plus.disable_verbose_mode()
+
+    Note:
+        - Safe to call even if verbose mode was never enabled
+        - Takes effect immediately for subsequent agent executions
+    """
+    if "MIXSEEK_VERBOSE" in os.environ:
+        del os.environ["MIXSEEK_VERBOSE"]
+        logger.debug("Verbose mode disabled via disable_verbose_mode()")
+
+
+# Module-level flag to track if verbose logging has been configured
+_VERBOSE_LOGGING_CONFIGURED = False
+
+
+def _ensure_verbose_logging_configured() -> None:
+    """Ensure verbose logging is configured for member_agents logger.
+
+    This function is called lazily when verbose mode is enabled and a tool
+    is about to be invoked. It configures the mixseek.member_agents logger
+    to show DEBUG level messages, which enables log_tool_invocation() output.
+
+    This lazy configuration is necessary because the logger handlers are
+    created by MemberAgentLogger when an agent is instantiated, which happens
+    after patch_core() is called.
+    """
+    global _VERBOSE_LOGGING_CONFIGURED
+
+    if _VERBOSE_LOGGING_CONFIGURED:
+        return
+
+    if not _is_verbose_mode():
+        return
+
+    # Configure logging level for member_agents to show DEBUG messages
+    member_agents_logger = logging.getLogger("mixseek.member_agents")
+    member_agents_logger.setLevel(logging.DEBUG)
+
+    # Also set file handler level to DEBUG if it exists
+    for handler in member_agents_logger.handlers:
+        if hasattr(handler, "baseFilename"):  # FileHandler
+            handler.setLevel(logging.DEBUG)
+
+    _VERBOSE_LOGGING_CONFIGURED = True
+    logger.debug("Verbose logging configured for member_agents (lazy init)")
+
+
+def _is_logfire_mode() -> bool:
+    """Check if Logfire mode is enabled via environment variable.
+
+    Logfire mode enables pydantic-ai auto-instrumentation for observability.
+
+    Returns:
+        True if MIXSEEK_LOGFIRE environment variable is set to '1' or 'true'
+        (case-insensitive), False otherwise.
+    """
+    return os.getenv("MIXSEEK_LOGFIRE", "").lower() in ("1", "true")
 
 
 class _ToolLike(Protocol):
@@ -493,7 +622,35 @@ def patch_core() -> None:
             e,
         )
 
+    # Configure verbose logging if MIXSEEK_VERBOSE is set
+    _configure_verbose_logging_if_enabled()
+
     _PATCH_APPLIED = True
+
+
+def _configure_verbose_logging_if_enabled() -> None:
+    """Configure logging level for verbose mode if MIXSEEK_VERBOSE is set.
+
+    This function checks if verbose mode is enabled via environment variable
+    and configures the mixseek.member_agents logger to show DEBUG level messages.
+    This ensures that log_tool_invocation() output appears in the log file.
+
+    Called automatically by patch_core() to handle cases where MIXSEEK_VERBOSE
+    is set before patch_core() is called.
+    """
+    if not _is_verbose_mode():
+        return
+
+    # Configure logging level for member_agents to show DEBUG messages
+    member_agents_logger = logging.getLogger("mixseek.member_agents")
+    member_agents_logger.setLevel(logging.DEBUG)
+
+    # Also set file handler level to DEBUG if it exists
+    for handler in member_agents_logger.handlers:
+        if hasattr(handler, "baseFilename"):  # FileHandler
+            handler.setLevel(logging.DEBUG)
+
+    logger.debug("Verbose logging configured for member_agents (MIXSEEK_VERBOSE=1)")
 
 
 def _patch_module_references(patched_func: Callable[[str], Model]) -> None:
@@ -648,6 +805,8 @@ def _wrap_tool_function_for_mcp(
     1. Gets the current TeamDependencies from the contextvar
     2. Creates a _MockRunContext with those deps
     3. Injects it as the first argument to the original function
+    4. Measures execution time and logs via MemberAgentLogger (if available)
+    5. Outputs verbose console log if MIXSEEK_VERBOSE is enabled
 
     Args:
         original_func: The original tool function that expects ctx as first arg.
@@ -671,7 +830,57 @@ def _wrap_tool_function_for_mcp(
             tool_name,
             deps.execution_id,
         )
-        return await original_func(mock_ctx, **kwargs)
+
+        # Ensure verbose logging is configured (lazy init after handlers are created)
+        _ensure_verbose_logging_configured()
+
+        # Verbose mode output via member_agents logger (has handlers configured)
+        member_logger = logging.getLogger("mixseek.member_agents")
+        if _is_verbose_mode():
+            # Summarize parameters for output (max 100 chars)
+            params_str = ", ".join(
+                f"{k}={str(v)[:50]}{'...' if len(str(v)) > 50 else ''}"
+                for k, v in kwargs.items()
+            )[:100]
+            member_logger.info("[MCP Tool Start] %s: %s", tool_name, params_str)
+
+        start_time = time.perf_counter()
+        status = "success"
+        try:
+            result = await original_func(mock_ctx, **kwargs)
+            return result
+        except Exception:
+            status = "error"
+            raise
+        finally:
+            execution_time_ms = int((time.perf_counter() - start_time) * 1000)
+
+            # Verbose mode output via member_agents logger (has handlers configured)
+            if _is_verbose_mode():
+                member_logger.info(
+                    "[MCP Tool Done] %s: %s in %dms",
+                    tool_name,
+                    status,
+                    execution_time_ms,
+                )
+
+            # Log tool invocation via MemberAgentLogger if logger is available on deps
+            deps_logger = getattr(deps, "logger", None)
+            if deps_logger is not None and hasattr(deps_logger, "log_tool_invocation"):
+                try:
+                    deps_logger.log_tool_invocation(
+                        execution_id=deps.execution_id,
+                        tool_name=tool_name,
+                        parameters=dict(kwargs),
+                        execution_time_ms=execution_time_ms,
+                        status=status,
+                    )
+                except Exception as log_error:
+                    logger.warning(
+                        "Failed to log tool invocation for '%s': %s",
+                        tool_name,
+                        log_error,
+                    )
 
     # Preserve function metadata (handle missing attributes gracefully)
     # Also handle Mock objects that may be used in tests

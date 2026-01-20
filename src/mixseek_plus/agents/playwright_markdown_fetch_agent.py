@@ -7,6 +7,8 @@ and converts them to Markdown format using MarkItDown.
 from __future__ import annotations
 
 import logging
+import os
+import time
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import Protocol
@@ -185,6 +187,11 @@ class PlaywrightMarkdownFetchAgent(BasePlaywrightAgent):
         When tools are called via MCP, pydantic-ai's RunContext is not available.
         This wrapper injects a mock context with PlaywrightDeps.
 
+        This wrapper also:
+        - Measures execution time
+        - Logs tool invocation via MemberAgentLogger
+        - Outputs verbose console log if MIXSEEK_VERBOSE is enabled
+
         Args:
             tool: A pydantic-ai Tool object
 
@@ -195,6 +202,7 @@ class PlaywrightMarkdownFetchAgent(BasePlaywrightAgent):
 
         original_function = tool.function
         agent_ref = self
+        tool_name = tool.name
 
         @dataclass
         class MockRunContext:
@@ -202,15 +210,104 @@ class PlaywrightMarkdownFetchAgent(BasePlaywrightAgent):
 
             deps: PlaywrightDeps
 
+        def _is_verbose() -> bool:
+            """Check if verbose mode is enabled."""
+            return os.getenv("MIXSEEK_VERBOSE", "").lower() in ("1", "true")
+
+        # Track if verbose logging has been configured for this wrapper
+        verbose_configured = [False]  # Use list for mutable closure
+
+        def _configure_verbose_logging() -> None:
+            """Configure logging level for verbose mode (lazy init)."""
+            if verbose_configured[0]:
+                return
+            member_agents_logger = logging.getLogger("mixseek.member_agents")
+            member_agents_logger.setLevel(logging.DEBUG)
+            for handler in member_agents_logger.handlers:
+                if hasattr(handler, "baseFilename"):
+                    handler.setLevel(logging.DEBUG)
+            verbose_configured[0] = True
+
         async def wrapped_function(**kwargs: object) -> str:
-            """Wrapper that injects PlaywrightDeps context."""
+            """Wrapper that injects PlaywrightDeps context and logs invocation."""
+            logger.debug(
+                "[MCP Wrapper] Tool '%s' called with kwargs: %s",
+                tool_name,
+                list(kwargs.keys()),
+            )
             # Create deps and mock context
             deps = PlaywrightDeps(agent=agent_ref)
             mock_ctx = MockRunContext(deps=deps)
 
-            # Call original function with context
-            result = await original_function(mock_ctx, **kwargs)
-            return str(result)
+            # Verbose mode output via member_agents logger (has handlers configured)
+            member_logger = logging.getLogger("mixseek.member_agents")
+            if _is_verbose():
+                params_str = ", ".join(
+                    f"{k}={str(v)[:50]}{'...' if len(str(v)) > 50 else ''}"
+                    for k, v in kwargs.items()
+                )[:100]
+                member_logger.info("[MCP Tool Start] %s: %s", tool_name, params_str)
+
+            start_time = time.perf_counter()
+            status = "success"
+            result_str = ""
+            try:
+                result = await original_function(mock_ctx, **kwargs)
+                result_str = str(result)
+                return result_str
+            except Exception:
+                status = "error"
+                raise
+            finally:
+                execution_time_ms = int((time.perf_counter() - start_time) * 1000)
+
+                # Verbose mode output via member_agents logger
+                if _is_verbose():
+                    member_logger.info(
+                        "[MCP Tool Done] %s: %s in %dms",
+                        tool_name,
+                        status,
+                        execution_time_ms,
+                    )
+                    # Log result preview (first 500 chars)
+                    if result_str:
+                        preview = result_str[:500].replace("\n", "\\n")
+                        member_logger.info("[MCP Tool Result Preview] %s", preview)
+
+                # Ensure verbose logging is configured (lazy init)
+                if _is_verbose():
+                    _configure_verbose_logging()
+
+                # Log tool invocation via MemberAgentLogger
+                has_logger = hasattr(agent_ref, "logger")
+                has_method = has_logger and hasattr(
+                    agent_ref.logger, "log_tool_invocation"
+                )
+                logger.debug(
+                    "[MCP Wrapper] Logging check: has_logger=%s, has_method=%s",
+                    has_logger,
+                    has_method,
+                )
+                if has_logger and has_method:
+                    try:
+                        # Get execution_id - this might not be available for member agents
+                        # so we generate a placeholder if not present
+                        execution_id = getattr(
+                            agent_ref, "_current_execution_id", "mcp"
+                        )
+                        agent_ref.logger.log_tool_invocation(
+                            execution_id=execution_id,
+                            tool_name=tool_name,
+                            parameters=dict(kwargs),
+                            execution_time_ms=execution_time_ms,
+                            status=status,
+                        )
+                    except Exception as log_error:
+                        logger.warning(
+                            "Failed to log tool invocation for '%s': %s",
+                            tool_name,
+                            log_error,
+                        )
 
         # Preserve function metadata
         wrapped_function.__name__ = original_function.__name__

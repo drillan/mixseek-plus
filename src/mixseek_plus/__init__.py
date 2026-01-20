@@ -14,6 +14,8 @@ from mixseek_plus.core_patch import (
     check_groq_support,
     clear_claudecode_tool_settings,
     configure_claudecode_tool_settings,
+    disable_verbose_mode,
+    enable_verbose_mode,
     get_claudecode_tool_settings,
     patch_core,
     reset_configuration_manager_patch,
@@ -60,6 +62,9 @@ __all__ = [
     "reset_configuration_manager_patch",
     "GroqNotPatchedError",
     "check_groq_support",
+    # Verbose mode (ClaudeCode only)
+    "enable_verbose_mode",
+    "disable_verbose_mode",
     # Presets
     "PRESET_FILE_PATH",
     "PresetFileNotFoundError",
