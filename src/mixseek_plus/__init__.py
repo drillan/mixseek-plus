@@ -2,11 +2,14 @@
 
 from mixseek_plus.agents import (
     ClaudeCodePlainAgent,
+    ClaudeCodeTavilySearchAgent,
     GroqPlainAgent,
+    GroqTavilySearchAgent,
     GroqWebSearchAgent,
     register_claudecode_agents,
     register_groq_agents,
     register_playwright_agents,
+    register_tavily_agents,
 )
 from mixseek_plus.core_patch import (
     GroqNotPatchedError,
@@ -48,9 +51,12 @@ __all__ = [
     "ConversionError",
     "GroqPlainAgent",
     "GroqWebSearchAgent",
+    "GroqTavilySearchAgent",
     "ClaudeCodePlainAgent",
+    "ClaudeCodeTavilySearchAgent",
     "register_groq_agents",
     "register_claudecode_agents",
+    "register_tavily_agents",
     # Playwright agents (loaded lazily)
     "PlaywrightMarkdownFetchAgent",
     "register_playwright_agents",

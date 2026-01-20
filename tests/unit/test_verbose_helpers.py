@@ -240,17 +240,57 @@ class TestEnsureVerboseLoggingConfigured:
         ensure_verbose_logging_configured()
         ensure_verbose_logging_configured()
 
-    def test_configures_member_agents_logger(self) -> None:
-        """Should configure mixseek.member_agents logger."""
+    def test_configures_member_agents_logger_when_verbose_enabled(self) -> None:
+        """Should configure mixseek.member_agents logger when verbose mode is enabled."""
         import logging
 
+        import mixseek_plus.utils.verbose as verbose_module
         from mixseek_plus.utils.verbose import ensure_verbose_logging_configured
 
-        ensure_verbose_logging_configured()
-
+        # Reset the global flag and logger level for clean test state
+        original_flag = verbose_module._VERBOSE_LOGGING_CONFIGURED
+        verbose_module._VERBOSE_LOGGING_CONFIGURED = False
         member_logger = logging.getLogger("mixseek.member_agents")
-        # Should have at least one handler after configuration
-        assert member_logger.level == logging.DEBUG or len(member_logger.handlers) >= 0
+        original_level = member_logger.level
+        member_logger.setLevel(logging.NOTSET)
+
+        try:
+            with patch("mixseek_plus.utils.verbose.is_verbose_mode", return_value=True):
+                ensure_verbose_logging_configured()
+
+            # Logger should be configured at DEBUG level when verbose mode is enabled
+            assert member_logger.level == logging.DEBUG
+        finally:
+            # Restore original state
+            verbose_module._VERBOSE_LOGGING_CONFIGURED = original_flag
+            member_logger.setLevel(original_level)
+
+    def test_does_not_configure_when_verbose_disabled(self) -> None:
+        """Should not configure logger when verbose mode is disabled."""
+        import logging
+
+        import mixseek_plus.utils.verbose as verbose_module
+        from mixseek_plus.utils.verbose import ensure_verbose_logging_configured
+
+        # Reset the global flag and logger level for clean test state
+        original_flag = verbose_module._VERBOSE_LOGGING_CONFIGURED
+        verbose_module._VERBOSE_LOGGING_CONFIGURED = False
+        member_logger = logging.getLogger("mixseek.member_agents")
+        original_level = member_logger.level
+        member_logger.setLevel(logging.WARNING)
+
+        try:
+            with patch(
+                "mixseek_plus.utils.verbose.is_verbose_mode", return_value=False
+            ):
+                ensure_verbose_logging_configured()
+
+            # Logger level should not be changed when verbose mode is disabled
+            assert member_logger.level == logging.WARNING
+        finally:
+            # Restore original state
+            verbose_module._VERBOSE_LOGGING_CONFIGURED = original_flag
+            member_logger.setLevel(original_level)
 
 
 class TestLogToolCallsIfVerbose:

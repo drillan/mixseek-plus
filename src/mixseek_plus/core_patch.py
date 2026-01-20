@@ -765,7 +765,12 @@ def _wrap_tool_function_for_mcp(
             try:
                 log_verbose_tool_done(tool_name, status, execution_time_ms)
             except Exception as log_error:
-                logger.debug("Failed to log tool completion: %s", log_error)
+                logger.warning(
+                    "Failed to log tool completion for '%s': %s",
+                    tool_name,
+                    log_error,
+                    exc_info=True,
+                )
 
             # Log tool invocation via MemberAgentLogger if logger is available on deps
             deps_logger = getattr(deps, "logger", None)

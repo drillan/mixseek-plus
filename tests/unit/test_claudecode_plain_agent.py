@@ -3,8 +3,15 @@
 CC-030, CC-031, CC-032, CC-034の検証
 """
 
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
 import pytest
 from mixseek.models.member_agent import MemberAgentConfig
+
+if TYPE_CHECKING:
+    from mixseek_plus.agents.base_claudecode_agent import BaseClaudeCodeAgent
 
 
 class TestClaudeCodePlainAgent:
@@ -110,7 +117,7 @@ class TestClaudeCodeToolSettings:
     and passed to create_claudecode_model().
     """
 
-    def _create_mock_agent(self) -> object:
+    def _create_mock_agent(self) -> "BaseClaudeCodeAgent":
         """Create a mock agent instance for testing _extract_claudecode_tool_settings."""
         from unittest.mock import MagicMock, patch
 

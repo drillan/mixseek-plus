@@ -89,6 +89,9 @@ class PydanticAgentExecutorMixin(ABC):
         Uses PydanticAIToolCallExtractor to extract tool call info from
         pydantic-ai message history and logs via verbose helpers.
 
+        This method is designed to never affect main execution flow - all
+        exceptions are caught and logged at WARNING level.
+
         Args:
             execution_id: The execution ID for log correlation.
             messages: List of pydantic-ai ModelMessage objects.
@@ -96,27 +99,45 @@ class PydanticAgentExecutorMixin(ABC):
         if not messages:
             return
 
-        extractor = PydanticAIToolCallExtractor()
-        tool_calls = extractor.extract_tool_calls(messages)
+        try:
+            extractor = PydanticAIToolCallExtractor()
+            tool_calls = extractor.extract_tool_calls(messages)
+        except Exception as e:
+            logger.warning(
+                "Failed to extract tool calls from message history: %s",
+                e,
+                exc_info=True,
+            )
+            return
 
         for call in tool_calls:
-            # Log via verbose helpers (checks is_verbose_mode internally)
-            log_verbose_tool_start(call["tool_name"], {"args": call["args_summary"]})
-            log_verbose_tool_done(
-                call["tool_name"],
-                call["status"],
-                0,  # execution_time_ms not available from history
-                result_preview=call["result_summary"],
-            )
+            try:
+                # Log via verbose helpers (checks is_verbose_mode internally)
+                log_verbose_tool_start(
+                    call["tool_name"], {"args": call["args_summary"]}
+                )
+                log_verbose_tool_done(
+                    call["tool_name"],
+                    call["status"],
+                    0,  # execution_time_ms not available from history
+                    result_preview=call["result_summary"],
+                )
 
-            # Always log via MemberAgentLogger (file logging)
-            self.logger.log_tool_invocation(
-                execution_id=execution_id,
-                tool_name=call["tool_name"],
-                parameters={"args_summary": call["args_summary"]},
-                execution_time_ms=0,  # Not available from history
-                status=call["status"],
-            )
+                # Always log via MemberAgentLogger (file logging)
+                self.logger.log_tool_invocation(
+                    execution_id=execution_id,
+                    tool_name=call["tool_name"],
+                    parameters={"args_summary": call["args_summary"]},
+                    execution_time_ms=0,  # Not available from history
+                    status=call["status"],
+                )
+            except Exception as e:
+                logger.warning(
+                    "Failed to log tool call '%s': %s",
+                    call.get("tool_name", "unknown"),
+                    e,
+                    exc_info=True,
+                )
 
     def _extract_usage_info(self, result: object) -> UsageInfo | None:
         """Extract usage information from Pydantic AI result.

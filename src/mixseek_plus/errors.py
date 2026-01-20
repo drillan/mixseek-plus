@@ -1,5 +1,31 @@
 """モデル作成に関するカスタム例外定義."""
 
+from __future__ import annotations
+
+from typing import Literal
+
+# Type alias for Tavily error types
+TavilyErrorType = Literal[
+    "AUTH_ERROR",
+    "VALIDATION_ERROR",
+    "RATE_LIMIT_ERROR",
+    "SERVER_ERROR",
+    "SERVICE_UNAVAILABLE",
+    "TIMEOUT_ERROR",
+    "RETRY_EXHAUSTED",
+    "API_ERROR",
+]
+
+# Error types that are safe to retry
+RETRYABLE_ERROR_TYPES: frozenset[TavilyErrorType] = frozenset(
+    {
+        "RATE_LIMIT_ERROR",
+        "SERVER_ERROR",
+        "SERVICE_UNAVAILABLE",
+        "TIMEOUT_ERROR",
+    }
+)
+
 
 class PlaywrightNotInstalledError(ImportError):
     """Playwrightがインストールされていない場合のエラー.
@@ -136,3 +162,41 @@ class ClaudeCodeNotPatchedError(Exception):
                 "    # Now you can use claudecode: models with Leader/Evaluator"
             )
         super().__init__(message)
+
+
+class TavilyAPIError(Exception):
+    """Tavily API呼び出しエラー.
+
+    Attributes:
+        message: エラーメッセージ
+        status_code: HTTPステータスコード（該当する場合）
+        error_type: エラータイプ（TavilyErrorType Literal型で制限）
+        is_retryable: リトライ可能かどうか（error_typeから自動導出）
+    """
+
+    def __init__(
+        self,
+        message: str,
+        status_code: int | None = None,
+        error_type: TavilyErrorType = "API_ERROR",
+    ) -> None:
+        """TavilyAPIErrorを初期化する.
+
+        Args:
+            message: エラーメッセージ
+            status_code: HTTPステータスコード（該当する場合）
+            error_type: エラータイプ（TavilyErrorType）
+        """
+        super().__init__(message)
+        self.status_code = status_code
+        self.error_type = error_type
+
+    @property
+    def message(self) -> str:
+        """エラーメッセージを取得."""
+        return str(self.args[0]) if self.args else ""
+
+    @property
+    def is_retryable(self) -> bool:
+        """error_typeからリトライ可能かどうかを自動導出."""
+        return self.error_type in RETRYABLE_ERROR_TYPES
