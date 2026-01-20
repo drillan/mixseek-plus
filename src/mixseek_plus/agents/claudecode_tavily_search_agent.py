@@ -3,7 +3,7 @@
 このモジュールはClaudeCodeモデルとTavily検索機能を組み合わせた
 Member Agentを提供します。
 
-ClaudeCodeのMCP (Model Context Protocol) 経由でTavilyツールを利用可能にします。
+Tavilyツールはpydantic-aiのツール機能としてエージェントに登録されます。
 """
 
 from __future__ import annotations
@@ -27,7 +27,6 @@ if TYPE_CHECKING:
     from typing import Any, Callable
 
     from mixseek.models.member_agent import MemberAgentConfig
-    from pydantic_ai.settings import ModelSettings
 
 logger = logging.getLogger(__name__)
 
@@ -107,30 +106,6 @@ class ClaudeCodeTavilySearchAgent(TavilyToolsRepositoryMixin, BaseClaudeCodeAgen
 
         # Register Tavily tools
         self._tavily_tools = self._register_tavily_tools()
-
-    def _create_model_settings(self) -> ModelSettings:
-        """Create ModelSettings from MemberAgentConfig.
-
-        Returns:
-            ModelSettings TypedDict with configured values
-        """
-
-        settings: ModelSettings = {}
-
-        if self.config.temperature is not None:
-            settings["temperature"] = self.config.temperature
-        if self.config.max_tokens is not None:
-            settings["max_tokens"] = self.config.max_tokens
-        if self.config.stop_sequences is not None:
-            settings["stop_sequences"] = self.config.stop_sequences
-        if self.config.top_p is not None:
-            settings["top_p"] = self.config.top_p
-        if self.config.seed is not None:
-            settings["seed"] = self.config.seed
-        if self.config.timeout_seconds is not None:
-            settings["timeout"] = float(self.config.timeout_seconds)
-
-        return settings
 
     def _create_tavily_client(self) -> TavilyAPIClient:
         """Create TavilyAPIClient from environment variable.

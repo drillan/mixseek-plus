@@ -11,13 +11,16 @@ import time
 from abc import abstractmethod
 from dataclasses import dataclass
 from pathlib import Path
-from typing import cast
+from typing import TYPE_CHECKING, cast
 
 from claudecode_model import CLIExecutionError, CLINotFoundError, CLIResponseParseError
 from pydantic_ai import Agent
 from pydantic_ai.models import Model
 
 from pydantic_ai.messages import ModelMessage
+
+if TYPE_CHECKING:
+    from pydantic_ai.settings import ModelSettings
 
 from mixseek.agents.member.base import BaseMemberAgent
 from mixseek.models.member_agent import MemberAgentConfig, MemberAgentResult
@@ -180,6 +183,29 @@ class BaseClaudeCodeAgent(BaseMemberAgent):
             return None
 
         return workspace
+
+    def _create_model_settings(self) -> ModelSettings:
+        """Create ModelSettings from MemberAgentConfig.
+
+        Returns:
+            ModelSettings TypedDict with configured values
+        """
+        settings: ModelSettings = {}
+
+        if self.config.temperature is not None:
+            settings["temperature"] = self.config.temperature
+        if self.config.max_tokens is not None:
+            settings["max_tokens"] = self.config.max_tokens
+        if self.config.stop_sequences is not None:
+            settings["stop_sequences"] = self.config.stop_sequences
+        if self.config.top_p is not None:
+            settings["top_p"] = self.config.top_p
+        if self.config.seed is not None:
+            settings["seed"] = self.config.seed
+        if self.config.timeout_seconds is not None:
+            settings["timeout"] = float(self.config.timeout_seconds)
+
+        return settings
 
     def _extract_api_error_details(self, error: Exception) -> tuple[str, str]:
         """Extract detailed error message and code from ClaudeCode API errors.

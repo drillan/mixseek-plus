@@ -10,16 +10,13 @@ import asyncio
 import logging
 from dataclasses import dataclass, field
 from collections.abc import Awaitable, Callable
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from httpx import HTTPStatusError
 from pydantic import BaseModel, Field
 from tavily import AsyncTavilyClient  # type: ignore[import-untyped]
 
 from mixseek_plus.errors import TavilyAPIError
-
-if TYPE_CHECKING:
-    pass
 
 logger = logging.getLogger(__name__)
 

@@ -328,12 +328,14 @@ class TestTavilyExtractValidation:
         )
 
     @pytest.mark.asyncio
-    async def test_tavily_extract_url_limit_exceeded_raises_validation_error(
+    async def test_tavily_extract_url_limit_exceeded_truncates_with_warning(
         self,
+        caplog: pytest.LogCaptureFixture,
     ) -> None:
-        """tavily_extract handles URL limit (>20) per NFR-004a (T016)."""
+        """tavily_extract truncates to 20 URLs with warning per NFR-004a (T016)."""
+        import logging
+
         from mixseek_plus.agents.mixins.tavily_tools import TavilyToolsRepositoryMixin
-        from mixseek_plus.errors import TavilyAPIError
 
         class TestAgent(TavilyToolsRepositoryMixin):
             def __init__(self) -> None:
@@ -349,13 +351,18 @@ class TestTavilyExtractValidation:
         agent = TestAgent()
 
         # Create list with 21 URLs (exceeds limit of 20)
-        urls = [f"https://example.com/page{i}" for i in range(21)]
+        input_urls = [f"https://example.com/page{i}" for i in range(21)]
 
-        with pytest.raises(TavilyAPIError) as exc_info:
-            agent.validate_extract_urls(urls)
+        with caplog.at_level(logging.WARNING):
+            result_urls = agent.validate_extract_urls(input_urls)
 
-        assert exc_info.value.error_type == "VALIDATION_ERROR"
-        assert "20" in exc_info.value.message  # Should mention the limit
+        # Should truncate to 20 URLs
+        assert len(result_urls) == 20
+        # Should keep first 20 URLs
+        assert result_urls == input_urls[:20]
+        # Should log a warning
+        assert "URL数が上限" in caplog.text
+        assert "20" in caplog.text
 
     @pytest.mark.asyncio
     async def test_tavily_extract_accepts_valid_url_list(self) -> None:

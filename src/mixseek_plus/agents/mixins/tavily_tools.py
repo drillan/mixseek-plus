@@ -119,6 +119,12 @@ class TavilyToolsRepositoryMixin:
                 return result_str  # noqa: TRY300
             except TavilyAPIError as e:
                 status = "error"
+                logger.error(
+                    "tavily_search failed: %s (error_type=%s, status_code=%s)",
+                    e.message,
+                    e.error_type,
+                    e.status_code,
+                )
                 return mixin_self.format_error_message(e)  # type: ignore[attr-defined, no-any-return]
             finally:
                 execution_time_ms = int((time.perf_counter() - start_time) * 1000)
@@ -160,6 +166,12 @@ class TavilyToolsRepositoryMixin:
                 return result_str  # noqa: TRY300
             except TavilyAPIError as e:
                 status = "error"
+                logger.error(
+                    "tavily_extract failed: %s (error_type=%s, status_code=%s)",
+                    e.message,
+                    e.error_type,
+                    e.status_code,
+                )
                 return mixin_self.format_error_message(e)  # type: ignore[attr-defined, no-any-return]
             finally:
                 execution_time_ms = int((time.perf_counter() - start_time) * 1000)
@@ -203,6 +215,12 @@ class TavilyToolsRepositoryMixin:
                 return result_str  # noqa: TRY300
             except TavilyAPIError as e:
                 status = "error"
+                logger.error(
+                    "tavily_context failed: %s (error_type=%s, status_code=%s)",
+                    e.message,
+                    e.error_type,
+                    e.status_code,
+                )
                 return mixin_self.format_error_message(e)  # type: ignore[attr-defined, no-any-return]
             finally:
                 execution_time_ms = int((time.perf_counter() - start_time) * 1000)
@@ -239,11 +257,14 @@ class TavilyToolsRepositoryMixin:
             )
 
         if len(urls) > self.MAX_EXTRACT_URLS:
-            raise TavilyAPIError(
-                message=f"URL数が上限を超えています。最大{self.MAX_EXTRACT_URLS}個までです。",
-                status_code=400,
-                error_type="VALIDATION_ERROR",
+            logger.warning(
+                "URL数が上限(%d)を超えています。最初の%d件のみ処理します。"
+                " (指定: %d件)",
+                self.MAX_EXTRACT_URLS,
+                self.MAX_EXTRACT_URLS,
+                len(urls),
             )
+            urls = urls[: self.MAX_EXTRACT_URLS]
 
         # Remove duplicates while preserving order
         seen: set[str] = set()
