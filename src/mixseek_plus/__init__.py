@@ -29,6 +29,7 @@ from mixseek_plus.errors import (
     FetchError,
     ModelCreationError,
     PlaywrightNotInstalledError,
+    TavilyAPIError,
 )
 from mixseek_plus.model_factory import create_model
 from mixseek_plus.presets import (
@@ -49,6 +50,8 @@ __all__ = [
     "PlaywrightNotInstalledError",
     "FetchError",
     "ConversionError",
+    # Tavily errors
+    "TavilyAPIError",
     "GroqPlainAgent",
     "GroqWebSearchAgent",
     "GroqTavilySearchAgent",
