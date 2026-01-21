@@ -94,6 +94,11 @@
 - システムの`python3`を使用しないこと
 - `uv run` または `.venv/bin/python` を使用
 
+## CLIコマンド
+
+- **コマンド名**: `mixseek-plus` または `mskp`（短縮形）
+- **チーム実行**: `mskp team "タスク" --config <config.toml>`
+
 ## 技術スタック
 
 - **言語**: Python 3.13+
@@ -113,6 +118,59 @@
 - Python 3.13+ + Playwright, MarkItDown, pydantic-ai, mixseek-core (BaseMemberAgent, MemberAgentConfig, MemberAgentFactory) (031-playwright-markdown-fetch)
 - File-based logging (`$WORKSPACE/logs/member-agent-YYYY-MM-DD.log`) (033-claudecode-logging)
 - Python 3.13+ + pydantic-ai, mixseek-core (BaseMemberAgent, MemberAgentConfig, MemberAgentFactory), tavily-python, claudecode-model (039-tavily-search-agent)
+
+## Agent Skills
+
+MixSeek-Plusは`.skills/`ディレクトリにAgent Skills（agentskills.io仕様準拠）を提供しています。
+
+### 使用方法（重要）
+
+**ユーザーのリクエストが以下のキーワードに該当する場合、対応するSKILL.mdを読み込み、その手順に従って実行してください。**
+
+| トリガーキーワード | 実行するスキル | 読み込むファイル |
+|-------------------|---------------|-----------------|
+| 「ワークスペースを初期化」「mixseekのセットアップ」「ワークスペースを作成」「プリセットを作成」「claudecode.tomlを生成」 | workspace-init | `.skills/mixseek-workspace-init/SKILL.md` |
+| 「チームを作成」「エージェント設定を生成」「チーム設定」 | team-config | `.skills/mixseek-team-config/SKILL.md` |
+| 「オーケストレーターを設定」「チーム競合設定」「複数チームで競わせる」 | orchestrator-config | `.skills/mixseek-orchestrator-config/SKILL.md` |
+| 「評価設定を作成」「スコアリング設定」「メトリクスを設定」 | evaluator-config | `.skills/mixseek-evaluator-config/SKILL.md` |
+| 「設定を検証」「TOMLをチェック」「バリデーション」「ワークスペースの検証」 | config-validate | `.skills/mixseek-config-validate/SKILL.md` |
+| 「使えるモデル」「モデル一覧」「どのモデルがある」「モデルを取得」「APIからモデル」 | model-list | `.skills/mixseek-model-list/SKILL.md` |
+
+### 実行手順
+
+1. ユーザーのリクエストからトリガーキーワードを検出
+2. 対応する`SKILL.md`ファイルを**必ず読み込む**
+3. SKILL.md内の「使用方法」セクションに従ってステップバイステップで実行
+4. 必要に応じて`scripts/`や`references/`ディレクトリ内のファイルも参照
+
+### スキル一覧
+
+| スキル名 | 説明 |
+|---------|------|
+| `mixseek-workspace-init` | ワークスペース初期化（ディレクトリ構造・プリセットファイル作成） |
+| `mixseek-team-config` | チーム設定TOML生成（Leader/Member Agent） |
+| `mixseek-orchestrator-config` | オーケストレーター設定生成（複数チーム競合） |
+| `mixseek-evaluator-config` | 評価・判定設定生成（メトリクス、重み付け） |
+| `mixseek-config-validate` | TOML設定ファイルの検証 |
+| `mixseek-model-list` | API経由でLLMモデル一覧を動的取得（フォールバック対応） |
+
+### mixseek-plus拡張機能
+
+mixseek-plusでは以下の拡張プロバイダーとエージェントタイプが利用可能です:
+
+**拡張プロバイダー**:
+- `groq:*` - Groq高速推論（`GROQ_API_KEY`必要）
+- `claudecode:*` - ClaudeCode組み込みツール統合（CLI認証）
+
+**拡張エージェントタイプ**:
+- `groq_plain` - Groq基本テキスト生成
+- `groq_web_search` - Groq + Tavily Web検索
+- `tavily_search` - Tavily検索（3ツール: search, extract, qna）
+- `claudecode_plain` - ClaudeCode基本エージェント
+- `claudecode_tavily_search` - ClaudeCode + Tavily検索
+- `playwright_markdown_fetch` - Playwright + MarkItDown
+
+詳細は `.skills/mixseek-model-list/SKILL.md` および `.skills/mixseek-team-config/references/TOML-SCHEMA.md` を参照。
 
 ## Recent Changes
 - 003-groq-provider: Added Python 3.13+ + pydantic-ai (GroqModel), mixseek-core (create_authenticated_model)
