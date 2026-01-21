@@ -22,6 +22,7 @@ from mixseek_plus.agents.mixins.tavily_tools import (
 from mixseek_plus.errors import ModelCreationError
 from mixseek_plus.providers.tavily import validate_tavily_credentials
 from mixseek_plus.providers.tavily_client import TavilyAPIClient
+from mixseek_plus.utils.verbose import MockRunContext, ToolLike
 
 if TYPE_CHECKING:
     from typing import Any, Callable
@@ -106,6 +107,9 @@ class ClaudeCodeTavilySearchAgent(TavilyToolsRepositoryMixin, BaseClaudeCodeAgen
 
         # Register Tavily tools
         self._tavily_tools = self._register_tavily_tools()
+
+        # Register toolsets with ClaudeCodeModel if applicable
+        self._register_toolsets_if_claudecode()
 
     def _create_tavily_client(self) -> TavilyAPIClient:
         """Create TavilyAPIClient from environment variable.
@@ -195,7 +199,7 @@ class ClaudeCodeTavilySearchAgent(TavilyToolsRepositoryMixin, BaseClaudeCodeAgen
         async def wrapped(**kwargs: Any) -> str:
             """Wrapped tool that injects deps via RunContext."""
             # Create a mock RunContext with our deps
-            ctx = _create_mock_run_context(deps)
+            ctx = MockRunContext(deps=deps)
             result: str = await tool(ctx, **kwargs)
             return result
 
@@ -205,21 +209,103 @@ class ClaudeCodeTavilySearchAgent(TavilyToolsRepositoryMixin, BaseClaudeCodeAgen
 
         return wrapped
 
+    def _register_toolsets_if_claudecode(self) -> None:
+        """Register toolsets with ClaudeCodeModel if applicable.
 
-def _create_mock_run_context(deps: TavilySearchDeps) -> Any:
-    """Create a mock RunContext for MCP tool calls.
+        ClaudeCodeModel requires explicit registration of tool functions
+        via set_agent_toolsets() after Agent creation. This method also:
+        - Wraps tool functions to inject TavilySearchDeps context
+        - Adds MCP tool names to allowed_tools to ensure Claude can call them
 
-    Args:
-        deps: TavilySearchDeps to include in context
+        The MCP tool naming convention is: mcp__<server_name>__<tool_name>
+        where server_name is obtained from claudecode_model.mcp_integration.MCP_SERVER_NAME
+        (currently 'pydantic_tools' for pydantic-ai tools).
+        """
+        try:
+            from claudecode_model import ClaudeCodeModel
+            from claudecode_model.mcp_integration import MCP_SERVER_NAME
 
-    Returns:
-        Mock object with deps attribute
-    """
+            if isinstance(self._model, ClaudeCodeModel) and self._agent is not None:
+                # Access the internal toolset from the agent
+                toolset = getattr(self._agent, "_function_toolset", None)
+                if toolset is not None:
+                    tools = list(toolset.tools.values())
+                    if tools:
+                        # Wrap tools to inject TavilySearchDeps context
+                        wrapped_tools = [
+                            self._wrap_tool_for_mcp_registration(tool) for tool in tools
+                        ]
+                        self._model.set_agent_toolsets(wrapped_tools)  # type: ignore[arg-type]
 
-    class MockRunContext:
-        """Mock RunContext that provides deps."""
+                        # Add MCP tool names to allowed_tools
+                        # MCP tools are named: mcp__<server_name>__<tool_name>
+                        mcp_tool_names = [
+                            f"mcp__{MCP_SERVER_NAME}__{tool.name}" for tool in tools
+                        ]
 
-        def __init__(self, deps: TavilySearchDeps) -> None:
-            self.deps = deps
+                        # Update allowed_tools on the model
+                        if self._model._allowed_tools is None:
+                            self._model._allowed_tools = mcp_tool_names
+                        else:
+                            # Extend existing allowed_tools
+                            self._model._allowed_tools = list(
+                                set(self._model._allowed_tools) | set(mcp_tool_names)
+                            )
+        except ImportError as e:
+            # Only suppress if claudecode_model package itself is missing
+            # Use ImportError.name attribute for reliable module detection
+            missing_module = getattr(e, "name", None)
+            if missing_module is None or not missing_module.startswith(
+                "claudecode_model"
+            ):
+                # Log unexpected import errors with full traceback for debugging
+                logger.error(
+                    "ClaudeCode model import failed unexpectedly: %s",
+                    e,
+                    exc_info=True,
+                )
+            else:
+                # claudecode_model is not installed - this is expected in some environments
+                logger.debug(
+                    "claudecode_model パッケージが利用できないため、"
+                    "Tavilyツールの ClaudeCodeModel への登録をスキップしました。"
+                )
 
-    return MockRunContext(deps)
+    def _wrap_tool_for_mcp_registration(self, tool: ToolLike) -> ToolLike:
+        """Wrap a pydantic-ai tool to inject TavilySearchDeps context.
+
+        When tools are called via MCP, pydantic-ai's RunContext is not available.
+        This wrapper injects a mock context with TavilySearchDeps.
+
+        Args:
+            tool: A pydantic-ai Tool object implementing ToolLike protocol
+
+        Returns:
+            A new Tool object with wrapped function
+        """
+        from dataclasses import replace
+
+        original_function = tool.function
+        agent_ref = self
+        tool_name = tool.name
+
+        async def wrapped_function(**kwargs: object) -> str:
+            """Wrapper that injects TavilySearchDeps context."""
+            logger.debug(
+                "[MCP Wrapper] Tool '%s' called with kwargs: %s",
+                tool_name,
+                list(kwargs.keys()),
+            )
+            # Create deps and mock context
+            deps = agent_ref._create_deps()
+            mock_ctx: MockRunContext[TavilySearchDeps] = MockRunContext(deps=deps)
+
+            result = await original_function(mock_ctx, **kwargs)
+            return str(result)
+
+        # Preserve function metadata
+        wrapped_function.__name__ = original_function.__name__
+        wrapped_function.__doc__ = original_function.__doc__
+
+        # Create new tool with wrapped function
+        return replace(tool, function=wrapped_function)  # type: ignore[type-var]
