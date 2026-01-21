@@ -312,3 +312,114 @@ class TestClaudeCodeTavilySearchAgentValidation:
             ClaudeCodeTavilySearchAgent(config)
 
         assert "Tavily" in str(exc_info.value)
+
+
+class TestClaudeCodeTavilySearchAgentToolsetRegistration:
+    """Tests for ClaudeCodeModel toolset registration."""
+
+    def test_has_register_toolsets_method(
+        self,
+        mock_tavily_api_key: str,
+    ) -> None:
+        """Agent has _register_toolsets_if_claudecode method."""
+        from mixseek_plus.agents.claudecode_tavily_search_agent import (
+            ClaudeCodeTavilySearchAgent,
+        )
+
+        config = MemberAgentConfig(
+            name="test-tavily-agent",
+            type="custom",
+            model="claudecode:claude-sonnet-4-5",
+            system_instruction="You are a helpful research assistant.",
+        )
+
+        agent = ClaudeCodeTavilySearchAgent(config)
+
+        # Verify the method exists
+        assert hasattr(agent, "_register_toolsets_if_claudecode")
+        assert callable(agent._register_toolsets_if_claudecode)
+
+    def test_calls_set_agent_toolsets_for_claudecode_model(
+        self,
+        mock_tavily_api_key: str,
+    ) -> None:
+        """set_agent_toolsets() is called when using ClaudeCodeModel."""
+
+        from mixseek_plus.agents.claudecode_tavily_search_agent import (
+            ClaudeCodeTavilySearchAgent,
+        )
+
+        config = MemberAgentConfig(
+            name="test-tavily-agent",
+            type="custom",
+            model="claudecode:claude-sonnet-4-5",
+            system_instruction="You are a helpful research assistant.",
+        )
+
+        agent = ClaudeCodeTavilySearchAgent(config)
+
+        # Verify that the model has set_agent_toolsets method called
+        # Since ClaudeCodeModel is used, set_agent_toolsets should have been called
+        # We verify this by checking that the model instance is ClaudeCodeModel
+        from claudecode_model import ClaudeCodeModel
+
+        assert isinstance(agent._model, ClaudeCodeModel)
+
+        # The toolsets should be registered (can be verified via internal state)
+        # We check that _agent_toolsets is not empty on the model
+        toolsets = getattr(agent._model, "_agent_toolsets", None)
+        assert toolsets is not None
+        assert len(toolsets) == 3  # 3 Tavily tools
+
+    def test_adds_mcp_tool_names_to_allowed_tools(
+        self,
+        mock_tavily_api_key: str,
+    ) -> None:
+        """MCP tool names are added to model's allowed_tools."""
+        from mixseek_plus.agents.claudecode_tavily_search_agent import (
+            ClaudeCodeTavilySearchAgent,
+        )
+
+        config = MemberAgentConfig(
+            name="test-tavily-agent",
+            type="custom",
+            model="claudecode:claude-sonnet-4-5",
+            system_instruction="You are a helpful research assistant.",
+        )
+
+        agent = ClaudeCodeTavilySearchAgent(config)
+
+        # Verify allowed_tools was updated with MCP tool names
+        assert agent._model._allowed_tools is not None
+        assert len(agent._model._allowed_tools) >= 3
+
+        # Check MCP naming convention
+        mcp_tool_names = [
+            t
+            for t in agent._model._allowed_tools
+            if t.startswith("mcp__pydantic_tools__tavily_")
+        ]
+        assert len(mcp_tool_names) == 3
+        assert "mcp__pydantic_tools__tavily_search" in mcp_tool_names
+        assert "mcp__pydantic_tools__tavily_extract" in mcp_tool_names
+        assert "mcp__pydantic_tools__tavily_context" in mcp_tool_names
+
+    def test_skips_registration_for_non_claudecode_model(
+        self,
+        mock_groq_api_key: str,
+    ) -> None:
+        """No registration happens for non-ClaudeCode models (Groq model)."""
+        from mixseek_plus.agents.groq_tavily_search_agent import GroqTavilySearchAgent
+
+        config = MemberAgentConfig(
+            name="test-groq-tavily-agent",
+            type="custom",
+            model="groq:llama-3.3-70b-versatile",
+            system_instruction="You are a helpful research assistant.",
+        )
+
+        # Create a Groq agent - it should not have set_agent_toolsets
+        agent = GroqTavilySearchAgent(config)
+
+        # Verify model does not have set_agent_toolsets (it's not ClaudeCodeModel)
+        assert not hasattr(agent._model, "set_agent_toolsets")
