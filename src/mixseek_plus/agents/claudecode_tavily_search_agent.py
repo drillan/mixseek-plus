@@ -22,6 +22,7 @@ from mixseek_plus.agents.mixins.tavily_tools import (
 from mixseek_plus.errors import ModelCreationError
 from mixseek_plus.providers.tavily import validate_tavily_credentials
 from mixseek_plus.providers.tavily_client import TavilyAPIClient
+from mixseek_plus.utils.verbose import MockRunContext, ToolLike
 
 if TYPE_CHECKING:
     from typing import Any, Callable
@@ -198,7 +199,7 @@ class ClaudeCodeTavilySearchAgent(TavilyToolsRepositoryMixin, BaseClaudeCodeAgen
         async def wrapped(**kwargs: Any) -> str:
             """Wrapped tool that injects deps via RunContext."""
             # Create a mock RunContext with our deps
-            ctx = _create_mock_run_context(deps)
+            ctx = MockRunContext(deps=deps)
             result: str = await tool(ctx, **kwargs)
             return result
 
@@ -217,7 +218,8 @@ class ClaudeCodeTavilySearchAgent(TavilyToolsRepositoryMixin, BaseClaudeCodeAgen
         - Adds MCP tool names to allowed_tools to ensure Claude can call them
 
         The MCP tool naming convention is: mcp__<server_name>__<tool_name>
-        For pydantic-ai tools, the server name is 'pydantic_tools'.
+        where server_name is obtained from claudecode_model.mcp_integration.MCP_SERVER_NAME
+        (currently 'pydantic_tools' for pydantic-ai tools).
         """
         try:
             from claudecode_model import ClaudeCodeModel
@@ -233,7 +235,7 @@ class ClaudeCodeTavilySearchAgent(TavilyToolsRepositoryMixin, BaseClaudeCodeAgen
                         wrapped_tools = [
                             self._wrap_tool_for_mcp_registration(tool) for tool in tools
                         ]
-                        self._model.set_agent_toolsets(wrapped_tools)
+                        self._model.set_agent_toolsets(wrapped_tools)  # type: ignore[arg-type]
 
                         # Add MCP tool names to allowed_tools
                         # MCP tools are named: mcp__<server_name>__<tool_name>
@@ -262,15 +264,21 @@ class ClaudeCodeTavilySearchAgent(TavilyToolsRepositoryMixin, BaseClaudeCodeAgen
                     e,
                     exc_info=True,
                 )
+            else:
+                # claudecode_model is not installed - this is expected in some environments
+                logger.debug(
+                    "claudecode_model パッケージが利用できないため、"
+                    "Tavilyツールの ClaudeCodeModel への登録をスキップしました。"
+                )
 
-    def _wrap_tool_for_mcp_registration(self, tool: Any) -> Any:
+    def _wrap_tool_for_mcp_registration(self, tool: ToolLike) -> ToolLike:
         """Wrap a pydantic-ai tool to inject TavilySearchDeps context.
 
         When tools are called via MCP, pydantic-ai's RunContext is not available.
         This wrapper injects a mock context with TavilySearchDeps.
 
         Args:
-            tool: A pydantic-ai Tool object
+            tool: A pydantic-ai Tool object implementing ToolLike protocol
 
         Returns:
             A new Tool object with wrapped function
@@ -290,7 +298,7 @@ class ClaudeCodeTavilySearchAgent(TavilyToolsRepositoryMixin, BaseClaudeCodeAgen
             )
             # Create deps and mock context
             deps = agent_ref._create_deps()
-            mock_ctx = _create_mock_run_context(deps)
+            mock_ctx: MockRunContext[TavilySearchDeps] = MockRunContext(deps=deps)
 
             result = await original_function(mock_ctx, **kwargs)
             return str(result)
@@ -300,23 +308,4 @@ class ClaudeCodeTavilySearchAgent(TavilyToolsRepositoryMixin, BaseClaudeCodeAgen
         wrapped_function.__doc__ = original_function.__doc__
 
         # Create new tool with wrapped function
-        return replace(tool, function=wrapped_function)
-
-
-def _create_mock_run_context(deps: TavilySearchDeps) -> Any:
-    """Create a mock RunContext for MCP tool calls.
-
-    Args:
-        deps: TavilySearchDeps to include in context
-
-    Returns:
-        Mock object with deps attribute
-    """
-
-    class MockRunContext:
-        """Mock RunContext that provides deps."""
-
-        def __init__(self, deps: TavilySearchDeps) -> None:
-            self.deps = deps
-
-    return MockRunContext(deps)
+        return replace(tool, function=wrapped_function)  # type: ignore[type-var]
