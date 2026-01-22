@@ -135,6 +135,8 @@ MixSeek-Plusは`.skills/`ディレクトリにAgent Skills（agentskills.io仕�
 | 「評価設定を作成」「スコアリング設定」「メトリクスを設定」 | evaluator-config | `.skills/mixseek-evaluator-config/SKILL.md` |
 | 「設定を検証」「TOMLをチェック」「バリデーション」「ワークスペースの検証」 | config-validate | `.skills/mixseek-config-validate/SKILL.md` |
 | 「使えるモデル」「モデル一覧」「どのモデルがある」「モデルを取得」「APIからモデル」 | model-list | `.skills/mixseek-model-list/SKILL.md` |
+| 「プロンプトを設定」「プロンプトビルダーを作成」「ラウンド別プロンプト」「プロンプトテンプレート」 | prompt-builder | `.skills/mixseek-prompt-builder/SKILL.md` |
+| 「ワークスペースの設定を調査」「設定の問題を調べて」「なぜ○○モデルが使われた」「設定が反映されない」「デフォルト値が使われる」 | 複数スキル参照 | `.skills/mixseek-orchestrator-config/SKILL.md`, `.skills/mixseek-evaluator-config/SKILL.md`, `.skills/mixseek-team-config/SKILL.md` |
 
 ### 実行手順
 
@@ -153,6 +155,7 @@ MixSeek-Plusは`.skills/`ディレクトリにAgent Skills（agentskills.io仕�
 | `mixseek-evaluator-config` | 評価・判定設定生成（メトリクス、重み付け） |
 | `mixseek-config-validate` | TOML設定ファイルの検証 |
 | `mixseek-model-list` | API経由でLLMモデル一覧を動的取得（フォールバック対応） |
+| `mixseek-prompt-builder` | プロンプトビルダー設定生成（Team/Evaluator/Judgmentテンプレート） |
 
 ### mixseek-plus拡張機能
 
