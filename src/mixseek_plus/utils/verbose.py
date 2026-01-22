@@ -68,10 +68,14 @@ def _configure_member_agents_logging() -> None:
     claudecode_logger.setLevel(logging.DEBUG)
 
     # Add a StreamHandler if not already present (for console output)
-    if not any(isinstance(h, logging.StreamHandler) for h in claudecode_logger.handlers):
+    if not any(
+        isinstance(h, logging.StreamHandler) for h in claudecode_logger.handlers
+    ):
         handler = logging.StreamHandler()
         handler.setLevel(logging.DEBUG)
-        handler.setFormatter(logging.Formatter("%(name)s - %(levelname)s - %(message)s"))
+        handler.setFormatter(
+            logging.Formatter("%(name)s - %(levelname)s - %(message)s")
+        )
         claudecode_logger.addHandler(handler)
 
 

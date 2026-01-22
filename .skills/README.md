@@ -12,6 +12,7 @@ MixSeek-Core用のAgent Skillsコレクションです。AIコーディングエ
 | `mixseek-evaluator-config` | 評価設定生成 | 「評価設定を作成」「スコアリング設定」 |
 | `mixseek-config-validate` | 設定検証 | 「設定を検証」「TOMLをチェック」 |
 | `mixseek-model-list` | モデル一覧取得 | 「使えるモデル」「モデル一覧」 |
+| `mixseek-debug` | デバッグ機能・ログ制御 | 「デバッグ」「verbose」「ログを有効化」 |
 | `detect-python-command` | Pythonコマンド判別・実行 | 「Pythonコマンドを確認」「どのpythonを使う」 |
 
 ## 使い方
@@ -126,10 +127,14 @@ done
 │   ├── SKILL.md
 │   └── scripts/
 │       └── validate-config.py
-└── mixseek-model-list/            # モデル一覧
+├── mixseek-model-list/            # モデル一覧
+│   ├── SKILL.md
+│   └── references/
+│       └── VALID-MODELS.md
+└── mixseek-debug/                 # デバッグ機能
     ├── SKILL.md
-    └── references/
-        └── VALID-MODELS.md
+    └── scripts/
+        └── check-debug-env.sh
 ```
 
 ## 仕様
