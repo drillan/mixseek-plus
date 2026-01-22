@@ -24,12 +24,39 @@ import json
 import sys
 import tomllib
 from pathlib import Path
-from typing import Any
+from typing import NotRequired, TypedDict
 
 from pydantic import ValidationError
 
 
-def detect_config_type(file_path: Path, data: dict[str, Any]) -> str | None:
+class ValidationError_(TypedDict):
+    """Structure for validation errors."""
+
+    type: str
+    location: NotRequired[str]
+    message: str
+    input: NotRequired[object]
+
+
+class ValidationDetails(TypedDict):
+    """Structure for verbose details."""
+
+    config_type: str
+    parsed_data: dict[str, object]
+
+
+class ValidationResult(TypedDict):
+    """Structure for validation results."""
+
+    file: str
+    valid: bool
+    errors: list[ValidationError_]
+    warnings: list[ValidationError_]
+    config_type: NotRequired[str]
+    details: NotRequired[ValidationDetails]
+
+
+def detect_config_type(file_path: Path, data: dict[str, object]) -> str | None:
     """Detect configuration type from file path or content."""
     name = file_path.name.lower()
 
@@ -54,7 +81,7 @@ def detect_config_type(file_path: Path, data: dict[str, Any]) -> str | None:
     return None
 
 
-def _extract_section(data: dict[str, Any], section_key: str) -> dict[str, Any]:
+def _extract_section(data: dict[str, object], section_key: str) -> dict[str, object]:
     """Extract nested section from TOML data if present.
 
     TOML files use section headers like [team], [orchestrator], etc.
@@ -69,16 +96,15 @@ def _extract_section(data: dict[str, Any], section_key: str) -> dict[str, Any]:
     """
     section = data.get(section_key)
     if isinstance(section, dict):
-        result: dict[str, Any] = section
-        return result
+        return section
     return data
 
 
-def validate_team_config(data: dict[str, Any]) -> list[dict[str, Any]]:
+def validate_team_config(data: dict[str, object]) -> list[ValidationError_]:
     """Validate team configuration using Pydantic schema."""
     from mixseek.config.schema import TeamSettings
 
-    errors = []
+    errors: list[ValidationError_] = []
     # Extract [team] section if present
     team_data = _extract_section(data, "team")
 
@@ -87,22 +113,22 @@ def validate_team_config(data: dict[str, Any]) -> list[dict[str, Any]]:
     except ValidationError as e:
         for error in e.errors():
             errors.append(
-                {
-                    "type": "schema_error",
-                    "location": ".".join(str(loc) for loc in error["loc"]),
-                    "message": error["msg"],
-                    "input": error.get("input"),
-                }
+                ValidationError_(
+                    type="schema_error",
+                    location=".".join(str(loc) for loc in error["loc"]),
+                    message=error["msg"],
+                    input=error.get("input"),
+                )
             )
 
     return errors
 
 
-def validate_orchestrator_config(data: dict[str, Any]) -> list[dict[str, Any]]:
+def validate_orchestrator_config(data: dict[str, object]) -> list[ValidationError_]:
     """Validate orchestrator configuration using Pydantic schema."""
     from mixseek.config.schema import OrchestratorSettings
 
-    errors = []
+    errors: list[ValidationError_] = []
     # Extract [orchestrator] section if present
     orchestrator_data = _extract_section(data, "orchestrator")
 
@@ -111,22 +137,22 @@ def validate_orchestrator_config(data: dict[str, Any]) -> list[dict[str, Any]]:
     except ValidationError as e:
         for error in e.errors():
             errors.append(
-                {
-                    "type": "schema_error",
-                    "location": ".".join(str(loc) for loc in error["loc"]),
-                    "message": error["msg"],
-                    "input": error.get("input"),
-                }
+                ValidationError_(
+                    type="schema_error",
+                    location=".".join(str(loc) for loc in error["loc"]),
+                    message=error["msg"],
+                    input=error.get("input"),
+                )
             )
 
     return errors
 
 
-def validate_evaluator_config(data: dict[str, Any]) -> list[dict[str, Any]]:
+def validate_evaluator_config(data: dict[str, object]) -> list[ValidationError_]:
     """Validate evaluator configuration using Pydantic schema."""
     from mixseek.config.schema import EvaluatorSettings
 
-    errors = []
+    errors: list[ValidationError_] = []
     # Evaluator config does not use a wrapper section
 
     try:
@@ -134,22 +160,22 @@ def validate_evaluator_config(data: dict[str, Any]) -> list[dict[str, Any]]:
     except ValidationError as e:
         for error in e.errors():
             errors.append(
-                {
-                    "type": "schema_error",
-                    "location": ".".join(str(loc) for loc in error["loc"]),
-                    "message": error["msg"],
-                    "input": error.get("input"),
-                }
+                ValidationError_(
+                    type="schema_error",
+                    location=".".join(str(loc) for loc in error["loc"]),
+                    message=error["msg"],
+                    input=error.get("input"),
+                )
             )
 
     return errors
 
 
-def validate_judgment_config(data: dict[str, Any]) -> list[dict[str, Any]]:
+def validate_judgment_config(data: dict[str, object]) -> list[ValidationError_]:
     """Validate judgment configuration using Pydantic schema."""
     from mixseek.config.schema import JudgmentSettings
 
-    errors = []
+    errors: list[ValidationError_] = []
     # Judgment config does not use a wrapper section
 
     try:
@@ -157,18 +183,20 @@ def validate_judgment_config(data: dict[str, Any]) -> list[dict[str, Any]]:
     except ValidationError as e:
         for error in e.errors():
             errors.append(
-                {
-                    "type": "schema_error",
-                    "location": ".".join(str(loc) for loc in error["loc"]),
-                    "message": error["msg"],
-                    "input": error.get("input"),
-                }
+                ValidationError_(
+                    type="schema_error",
+                    location=".".join(str(loc) for loc in error["loc"]),
+                    message=error["msg"],
+                    input=error.get("input"),
+                )
             )
 
     return errors
 
 
-def validate_config(file_path: Path, config_type: str | None = None, verbose: bool = False) -> dict[str, Any]:
+def validate_config(
+    file_path: Path, config_type: str | None = None, verbose: bool = False
+) -> ValidationResult:
     """Validate a configuration file.
 
     Args:
@@ -179,49 +207,58 @@ def validate_config(file_path: Path, config_type: str | None = None, verbose: bo
     Returns:
         Validation result dictionary
     """
-    result: dict[str, Any] = {
-        "file": str(file_path),
-        "valid": False,
-        "errors": [],
-        "warnings": [],
-    }
+    errors: list[ValidationError_] = []
+    warnings: list[ValidationError_] = []
 
     # Check file exists
     if not file_path.exists():
-        result["errors"].append(
-            {
-                "type": "file_error",
-                "message": f"File not found: {file_path}",
-            }
+        errors.append(
+            ValidationError_(
+                type="file_error",
+                message=f"File not found: {file_path}",
+            )
         )
-        return result
+        return ValidationResult(
+            file=str(file_path),
+            valid=False,
+            errors=errors,
+            warnings=warnings,
+        )
 
     # Parse TOML
     try:
         with open(file_path, "rb") as f:
-            data = tomllib.load(f)
+            data: dict[str, object] = tomllib.load(f)
     except tomllib.TOMLDecodeError as e:
-        result["errors"].append(
-            {
-                "type": "toml_syntax_error",
-                "message": str(e),
-            }
+        errors.append(
+            ValidationError_(
+                type="toml_syntax_error",
+                message=str(e),
+            )
         )
-        return result
+        return ValidationResult(
+            file=str(file_path),
+            valid=False,
+            errors=errors,
+            warnings=warnings,
+        )
 
     # Detect config type if not specified
     if config_type is None:
         config_type = detect_config_type(file_path, data)
         if config_type is None:
-            result["errors"].append(
-                {
-                    "type": "detection_error",
-                    "message": "Could not detect configuration type. Use --type to specify.",
-                }
+            errors.append(
+                ValidationError_(
+                    type="detection_error",
+                    message="Could not detect configuration type. Use --type to specify.",
+                )
             )
-            return result
-
-    result["config_type"] = config_type
+            return ValidationResult(
+                file=str(file_path),
+                valid=False,
+                errors=errors,
+                warnings=warnings,
+            )
 
     # Validate based on type
     validators = {
@@ -233,40 +270,54 @@ def validate_config(file_path: Path, config_type: str | None = None, verbose: bo
 
     validator = validators.get(config_type)
     if validator is None:
-        result["errors"].append(
-            {
-                "type": "type_error",
-                "message": f"Unknown config type: {config_type}",
-            }
+        errors.append(
+            ValidationError_(
+                type="type_error",
+                message=f"Unknown config type: {config_type}",
+            )
         )
-        return result
+        return ValidationResult(
+            file=str(file_path),
+            valid=False,
+            errors=errors,
+            warnings=warnings,
+            config_type=config_type,
+        )
 
-    errors = validator(data)
-    result["errors"].extend(errors)
+    validation_errors = validator(data)
+    errors.extend(validation_errors)
 
-    # Set valid flag
-    result["valid"] = len(result["errors"]) == 0
+    # Build result
+    is_valid = len(errors) == 0
+    result = ValidationResult(
+        file=str(file_path),
+        valid=is_valid,
+        errors=errors,
+        warnings=warnings,
+        config_type=config_type,
+    )
 
     # Add verbose information
-    if verbose and result["valid"]:
-        result["details"] = {
-            "config_type": config_type,
-            "parsed_data": data,
-        }
+    if verbose and is_valid:
+        result["details"] = ValidationDetails(
+            config_type=config_type,
+            parsed_data=data,
+        )
 
     return result
 
 
-def format_result_text(result: dict[str, Any]) -> str:
+def format_result_text(result: ValidationResult) -> str:
     """Format validation result as human-readable text."""
-    lines = []
+    lines: list[str] = []
 
     file_name = Path(result["file"]).name
     lines.append(f"Validating: {file_name}")
     lines.append("")
 
-    if result.get("config_type"):
-        lines.append(f"Config type: {result['config_type']}")
+    config_type = result.get("config_type")
+    if config_type:
+        lines.append(f"Config type: {config_type}")
         lines.append("")
 
     if result["valid"]:
@@ -309,7 +360,9 @@ def format_result_text(result: dict[str, Any]) -> str:
 
 def main() -> int:
     """Main entry point."""
-    parser = argparse.ArgumentParser(description="Validate MixSeek TOML configuration files")
+    parser = argparse.ArgumentParser(
+        description="Validate MixSeek TOML configuration files"
+    )
     parser.add_argument("config_file", type=Path, help="Path to configuration file")
     parser.add_argument(
         "--type",
@@ -317,7 +370,9 @@ def main() -> int:
         help="Configuration type (auto-detected if not specified)",
     )
     parser.add_argument("--json", action="store_true", help="Output results as JSON")
-    parser.add_argument("--verbose", action="store_true", help="Show detailed information")
+    parser.add_argument(
+        "--verbose", action="store_true", help="Show detailed information"
+    )
 
     args = parser.parse_args()
 

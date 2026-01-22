@@ -9,7 +9,9 @@ description: MixSeek-Coreで利用可能なLLMモデルの一覧を表示しま�
 
 MixSeek-Coreで利用可能なLLMモデルの一覧を提供します。API経由で最新のモデル情報を動的に取得し、プロバイダー別のモデル情報、用途別の推奨設定、agent_typeとの互換性情報を確認できます。
 
-**FR-008準拠**: Google Gemini、Anthropic Claude、OpenAI、Grokの各プロバイダーからAPI経由でモデル一覧を取得。APIが利用できない場合は`docs/data/valid-models.csv`からフォールバック取得します。
+**FR-008準拠**: Google Gemini、Anthropic Claude、OpenAI、Grokの各プロバイダーからAPI経由でモデル一覧を取得。
+
+**Article 6準拠**: APIキー未設定やAPI失敗時は明示的にエラーを報告します（暗黙的フォールバックなし）。
 
 ## 前提条件
 
@@ -27,7 +29,7 @@ APIからモデル一覧を取得する場合、対応する環境変数を設�
 | Tavily | `TAVILY_API_KEY` | `tvly-` で始まる。web_search系で必要（オプション） |
 | ClaudeCode | - | CLI認証のため環境変数不要（mixseek-plus拡張） |
 
-**注意**: 環境変数が未設定の場合は、該当プロバイダーのみフォールバック（静的CSV）を使用します。
+**注意**: 環境変数が未設定の場合、該当プロバイダーは明示的にエラーを報告します。
 
 ## 使用方法
 
@@ -69,18 +71,10 @@ echo "GROK_API_KEY: ${GROK_API_KEY:+設定済み}"
 .skills/detect-python-command/scripts/run-python.sh \
     .skills/mixseek-model-list/scripts/fetch-models.py --json
 
-# 詳細出力（フォールバック使用状況を表示）
+# 詳細出力（エラー情報も表示）
 .skills/detect-python-command/scripts/run-python.sh \
     .skills/mixseek-model-list/scripts/fetch-models.py --verbose --format text
-
-# フォールバックのみ使用（APIスキップ）
-.skills/detect-python-command/scripts/run-python.sh \
-    .skills/mixseek-model-list/scripts/fetch-models.py --fallback-only
 ```
-
-**静的参照（APIが利用できない場合）:**
-
-`docs/data/valid-models.csv` からフォールバックデータを取得。
 
 ## CLIコマンドリファレンス
 
@@ -93,8 +87,7 @@ OPTIONS:
   --format TEXT      出力形式: text, json, csv, mixseek
                      (default: mixseek)
   --json             --format json のショートカット
-  --fallback-only    APIをスキップし、フォールバックのみ使用
-  --verbose, -v      詳細出力（フォールバック使用状況を表示）
+  --verbose, -v      詳細出力（エラー情報も表示）
 ```
 
 ### 出力形式
@@ -241,7 +234,7 @@ model = "anthropic:<model-id>"  # fetch-models.py で取得したモデルIDを�
 ### APIキーエラー（fetch-models.py）
 
 ```
-Warning: GOOGLE_API_KEY not set, using fallback for google
+Error [google]: Error: GOOGLE_API_KEY environment variable is not set.
 ```
 
 **解決方法**:
@@ -256,14 +249,14 @@ export GROK_API_KEY="your-api-key"
 ### API接続エラー
 
 ```
-Warning: API fetch failed for google: <urlopen error ...>, using fallback
+Error [google]: <urlopen error ...>
 ```
 
 **原因と解決方法**:
 - ネットワーク接続を確認
 - プロキシ設定を確認（企業環境の場合）
 - APIキーの有効性を確認
-- フォールバックが自動で使用されるため、処理は継続されます
+- 他のプロバイダーが成功していれば、そのモデルのみ出力されます
 
 ### API認証エラー（401/403）
 
@@ -279,13 +272,13 @@ Warning: API fetch failed for openai: HTTP Error 401: Unauthorized
 ### タイムアウトエラー
 
 ```
-Warning: API fetch failed for anthropic: timed out
+Error [anthropic]: timed out
 ```
 
 **解決方法**:
 - ネットワーク接続を確認
 - 後で再試行
-- `--fallback-only` オプションでフォールバックを使用
+- 特定のプロバイダーのみ指定: `--provider openai`
 
 ### MixSeek設定時のAPIキーエラー
 
@@ -369,9 +362,5 @@ model = "groq:llama-3.3-70b-versatile"
 ## 参照
 
 - スクリプト: `scripts/fetch-models.py`
-- フォールバックデータ: `docs/data/valid-models.csv`
 - チーム設定: `.skills/mixseek-team-config/`
 - 評価設定: `.skills/mixseek-evaluator-config/`
-- Groqエージェント: `docs/agents/groq-agents.md`
-- ClaudeCodeエージェント: `docs/agents/claudecode-agents.md`
-- Tavilyエージェント: `docs/agents/tavily-search-agents.md`
