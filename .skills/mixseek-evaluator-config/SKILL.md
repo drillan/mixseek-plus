@@ -76,6 +76,15 @@ $MIXSEEK_WORKSPACE/configs/evaluators/evaluator.toml
 $MIXSEEK_WORKSPACE/configs/judgment/judgment.toml
 ```
 
+**重要**: カスタムパス（`configs/evaluators/`や`configs/judgment/`）を使用する場合は、必ず`orchestrator.toml`でパスを明示的に指定してください。指定しないとデフォルトパス（`configs/evaluator.toml`、`configs/judgment.toml`）が検索され、設定が反映されません。
+
+```toml
+# orchestrator.toml
+[orchestrator]
+evaluator_config = "configs/evaluators/evaluator.toml"
+judgment_config = "configs/judgment/judgment.toml"
+```
+
 ### Step 5: 設定ファイルの検証（必須）
 
 **生成後は必ず検証を実行してください。**

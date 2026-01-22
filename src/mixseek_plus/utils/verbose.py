@@ -60,7 +60,10 @@ def _configure_member_agents_logging() -> None:
         if hasattr(handler, "baseFilename"):  # FileHandler
             handler.setLevel(logging.DEBUG)
 
-    # Also configure claudecode_model logger for DEBUG level
+    # Configure claudecode_model logger for DEBUG level.
+    # This enables visibility into ClaudeCodeModel's internal operations
+    # (API calls, tool executions, errors) when verbose mode is active,
+    # which is essential for debugging ClaudeCode-based agents.
     claudecode_logger = logging.getLogger("claudecode_model")
     claudecode_logger.setLevel(logging.DEBUG)
 
