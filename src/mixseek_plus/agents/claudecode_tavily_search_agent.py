@@ -15,6 +15,7 @@ from typing import TYPE_CHECKING
 from pydantic_ai import Agent
 
 from mixseek_plus.agents.base_claudecode_agent import BaseClaudeCodeAgent
+from mixseek_plus.agents.mixins.claudecode_toolset import ClaudeCodeToolsetMixin
 from mixseek_plus.agents.mixins.tavily_tools import (
     TavilySearchDeps,
     TavilyToolsRepositoryMixin,
@@ -35,7 +36,9 @@ logger = logging.getLogger(__name__)
 MCP_TOOL_PREFIX = "mcp__pydantic_tools__"
 
 
-class ClaudeCodeTavilySearchAgent(TavilyToolsRepositoryMixin, BaseClaudeCodeAgent):
+class ClaudeCodeTavilySearchAgent(
+    ClaudeCodeToolsetMixin, TavilyToolsRepositoryMixin, BaseClaudeCodeAgent
+):
     """ClaudeCodeモデル + Tavilyツールのエージェント.
 
     このエージェントはClaudeCodeの強力な機能とTavilyの3つのツールを組み合わせます:
@@ -209,69 +212,7 @@ class ClaudeCodeTavilySearchAgent(TavilyToolsRepositoryMixin, BaseClaudeCodeAgen
 
         return wrapped
 
-    def _register_toolsets_if_claudecode(self) -> None:
-        """Register toolsets with ClaudeCodeModel if applicable.
-
-        ClaudeCodeModel requires explicit registration of tool functions
-        via set_agent_toolsets() after Agent creation. This method also:
-        - Wraps tool functions to inject TavilySearchDeps context
-        - Adds MCP tool names to allowed_tools to ensure Claude can call them
-
-        The MCP tool naming convention is: mcp__<server_name>__<tool_name>
-        where server_name is obtained from claudecode_model.mcp_integration.MCP_SERVER_NAME
-        (currently 'pydantic_tools' for pydantic-ai tools).
-        """
-        try:
-            from claudecode_model import ClaudeCodeModel
-            from claudecode_model.mcp_integration import MCP_SERVER_NAME
-
-            if isinstance(self._model, ClaudeCodeModel) and self._agent is not None:
-                # Access the internal toolset from the agent
-                toolset = getattr(self._agent, "_function_toolset", None)
-                if toolset is not None:
-                    tools = list(toolset.tools.values())
-                    if tools:
-                        # Wrap tools to inject TavilySearchDeps context
-                        wrapped_tools = [
-                            self._wrap_tool_for_mcp_registration(tool) for tool in tools
-                        ]
-                        self._model.set_agent_toolsets(wrapped_tools)  # type: ignore[arg-type]
-
-                        # Add MCP tool names to allowed_tools
-                        # MCP tools are named: mcp__<server_name>__<tool_name>
-                        mcp_tool_names = [
-                            f"mcp__{MCP_SERVER_NAME}__{tool.name}" for tool in tools
-                        ]
-
-                        # Update allowed_tools on the model
-                        if self._model._allowed_tools is None:
-                            self._model._allowed_tools = mcp_tool_names
-                        else:
-                            # Extend existing allowed_tools
-                            self._model._allowed_tools = list(
-                                set(self._model._allowed_tools) | set(mcp_tool_names)
-                            )
-        except ImportError as e:
-            # Only suppress if claudecode_model package itself is missing
-            # Use ImportError.name attribute for reliable module detection
-            missing_module = getattr(e, "name", None)
-            if missing_module is None or not missing_module.startswith(
-                "claudecode_model"
-            ):
-                # Log unexpected import errors with full traceback for debugging
-                logger.error(
-                    "ClaudeCode model import failed unexpectedly: %s",
-                    e,
-                    exc_info=True,
-                )
-            else:
-                # claudecode_model is not installed - this is expected in some environments
-                logger.debug(
-                    "claudecode_model パッケージが利用できないため、"
-                    "Tavilyツールの ClaudeCodeModel への登録をスキップしました。"
-                )
-
-    def _wrap_tool_for_mcp_registration(self, tool: ToolLike) -> ToolLike:
+    def _wrap_tool_for_mcp_impl(self, tool: ToolLike) -> ToolLike:
         """Wrap a pydantic-ai tool to inject TavilySearchDeps context.
 
         When tools are called via MCP, pydantic-ai's RunContext is not available.

@@ -13,7 +13,7 @@ import pytest
 
 @dataclass
 class MockTool:
-    """Dataclass-compatible tool mock for testing _wrap_tool_for_mcp."""
+    """Dataclass-compatible tool mock for testing _wrap_tool_for_mcp_impl."""
 
     name: str
     description: str | None
@@ -21,18 +21,18 @@ class MockTool:
 
 
 class TestPlaywrightAgentMCPToolLogging:
-    """PlaywrightMarkdownFetchAgent の _wrap_tool_for_mcp() ログ機能テスト."""
+    """PlaywrightMarkdownFetchAgent の _wrap_tool_for_mcp_impl() ログ機能テスト."""
 
-    def test_wrap_tool_for_mcp_exists(self) -> None:
-        """_wrap_tool_for_mcp メソッドが存在することを確認."""
+    def test_wrap_tool_for_mcp_impl_exists(self) -> None:
+        """_wrap_tool_for_mcp_impl メソッドが存在することを確認."""
         from mixseek_plus.agents.playwright_markdown_fetch_agent import (
             PlaywrightMarkdownFetchAgent,
         )
 
-        assert hasattr(PlaywrightMarkdownFetchAgent, "_wrap_tool_for_mcp")
+        assert hasattr(PlaywrightMarkdownFetchAgent, "_wrap_tool_for_mcp_impl")
 
-    def test_wrap_tool_for_mcp_returns_tool_like(self) -> None:
-        """_wrap_tool_for_mcp がToolLikeオブジェクトを返すことを確認."""
+    def test_wrap_tool_for_mcp_impl_returns_tool_like(self) -> None:
+        """_wrap_tool_for_mcp_impl がToolLikeオブジェクトを返すことを確認."""
         from mixseek_plus.agents.playwright_markdown_fetch_agent import (
             PlaywrightMarkdownFetchAgent,
         )
@@ -51,7 +51,7 @@ class TestPlaywrightAgentMCPToolLogging:
         ):
             agent = PlaywrightMarkdownFetchAgent.__new__(PlaywrightMarkdownFetchAgent)
 
-            result = agent._wrap_tool_for_mcp(mock_tool)  # type: ignore[arg-type]
+            result = agent._wrap_tool_for_mcp_impl(mock_tool)  # type: ignore[arg-type]
 
             # Verify it has the required attributes
             assert hasattr(result, "name")
@@ -60,8 +60,8 @@ class TestPlaywrightAgentMCPToolLogging:
             assert callable(result.function)
 
     @pytest.mark.asyncio
-    async def test_wrap_tool_for_mcp_injects_context(self) -> None:
-        """_wrap_tool_for_mcp がPlaywrightDepsコンテキストを注入することを確認."""
+    async def test_wrap_tool_for_mcp_impl_injects_context(self) -> None:
+        """_wrap_tool_for_mcp_impl がPlaywrightDepsコンテキストを注入することを確認."""
         from mixseek_plus.agents.playwright_markdown_fetch_agent import (
             PlaywrightDeps,
             PlaywrightMarkdownFetchAgent,
@@ -84,7 +84,7 @@ class TestPlaywrightAgentMCPToolLogging:
         ):
             agent = PlaywrightMarkdownFetchAgent.__new__(PlaywrightMarkdownFetchAgent)
 
-            wrapped_tool = agent._wrap_tool_for_mcp(mock_tool)  # type: ignore[arg-type]
+            wrapped_tool = agent._wrap_tool_for_mcp_impl(mock_tool)  # type: ignore[arg-type]
 
             # Call the wrapped function
             await wrapped_tool.function(url="https://example.com")
@@ -96,8 +96,8 @@ class TestPlaywrightAgentMCPToolLogging:
             assert received_ctx.deps.agent is agent
 
     @pytest.mark.asyncio
-    async def test_wrap_tool_for_mcp_preserves_function_metadata(self) -> None:
-        """_wrap_tool_for_mcp が関数メタデータを保持することを確認."""
+    async def test_wrap_tool_for_mcp_impl_preserves_function_metadata(self) -> None:
+        """_wrap_tool_for_mcp_impl が関数メタデータを保持することを確認."""
         from mixseek_plus.agents.playwright_markdown_fetch_agent import (
             PlaywrightMarkdownFetchAgent,
         )
@@ -115,7 +115,7 @@ class TestPlaywrightAgentMCPToolLogging:
         ):
             agent = PlaywrightMarkdownFetchAgent.__new__(PlaywrightMarkdownFetchAgent)
 
-            wrapped_tool = agent._wrap_tool_for_mcp(mock_tool)  # type: ignore[arg-type]
+            wrapped_tool = agent._wrap_tool_for_mcp_impl(mock_tool)  # type: ignore[arg-type]
 
             # Function metadata should be preserved
             assert wrapped_tool.function.__name__ == "original_func"

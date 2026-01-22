@@ -4,6 +4,10 @@ This package provides reusable mixins that eliminate code duplication
 across different agent base classes.
 """
 
+from mixseek_plus.agents.mixins.claudecode_toolset import (
+    ClaudeCodeToolsetMixin,
+    ClaudeCodeToolsetProtocol,
+)
 from mixseek_plus.agents.mixins.execution import PydanticAgentExecutorMixin
 from mixseek_plus.agents.mixins.tavily_tools import (
     TavilyAgentProtocol,
@@ -12,6 +16,8 @@ from mixseek_plus.agents.mixins.tavily_tools import (
 )
 
 __all__ = [
+    "ClaudeCodeToolsetMixin",
+    "ClaudeCodeToolsetProtocol",
     "PydanticAgentExecutorMixin",
     "TavilyToolsRepositoryMixin",
     "TavilySearchDeps",

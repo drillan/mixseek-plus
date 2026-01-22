@@ -4,6 +4,8 @@ This module provides custom agent implementations that extend mixseek-core
 with additional provider support (e.g., Groq, ClaudeCode, Playwright).
 """
 
+from typing import TYPE_CHECKING
+
 from mixseek_plus.agents.claudecode_agent import ClaudeCodePlainAgent
 from mixseek_plus.agents.claudecode_tavily_search_agent import (
     ClaudeCodeTavilySearchAgent,
@@ -11,6 +13,27 @@ from mixseek_plus.agents.claudecode_tavily_search_agent import (
 from mixseek_plus.agents.groq_agent import GroqPlainAgent
 from mixseek_plus.agents.groq_tavily_search_agent import GroqTavilySearchAgent
 from mixseek_plus.agents.groq_web_search_agent import GroqWebSearchAgent
+
+if TYPE_CHECKING:
+    from mixseek.agents.member.base import BaseMemberAgent
+
+# Type alias for agent registration mapping
+AgentRegistration = dict[str, type["BaseMemberAgent"]]
+
+# Agent registrations by category
+GROQ_AGENTS: AgentRegistration = {
+    "groq_plain": GroqPlainAgent,
+    "groq_web_search": GroqWebSearchAgent,
+}
+
+CLAUDECODE_AGENTS: AgentRegistration = {
+    "claudecode_plain": ClaudeCodePlainAgent,
+}
+
+TAVILY_AGENTS: AgentRegistration = {
+    "tavily_search": GroqTavilySearchAgent,
+    "claudecode_tavily_search": ClaudeCodeTavilySearchAgent,
+}
 
 __all__ = [
     "GroqPlainAgent",
@@ -43,6 +66,18 @@ def __getattr__(name: str) -> object:
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
+def _register_agents(agents: AgentRegistration) -> None:
+    """Register agents with MemberAgentFactory.
+
+    Args:
+        agents: Dictionary mapping agent type names to agent classes
+    """
+    from mixseek.agents.member.factory import MemberAgentFactory
+
+    for name, agent_class in agents.items():
+        MemberAgentFactory.register_agent(name, agent_class)
+
+
 def register_groq_agents() -> None:
     """Register Groq agents with MemberAgentFactory.
 
@@ -58,10 +93,7 @@ def register_groq_agents() -> None:
     Note:
         This function is idempotent - calling it multiple times is safe.
     """
-    from mixseek.agents.member.factory import MemberAgentFactory
-
-    MemberAgentFactory.register_agent("groq_plain", GroqPlainAgent)
-    MemberAgentFactory.register_agent("groq_web_search", GroqWebSearchAgent)
+    _register_agents(GROQ_AGENTS)
 
 
 def register_claudecode_agents() -> None:
@@ -79,9 +111,7 @@ def register_claudecode_agents() -> None:
     Note:
         This function is idempotent - calling it multiple times is safe.
     """
-    from mixseek.agents.member.factory import MemberAgentFactory
-
-    MemberAgentFactory.register_agent("claudecode_plain", ClaudeCodePlainAgent)
+    _register_agents(CLAUDECODE_AGENTS)
 
 
 def register_tavily_agents() -> None:
@@ -108,12 +138,7 @@ def register_tavily_agents() -> None:
         This function is idempotent - calling it multiple times is safe.
         Requires TAVILY_API_KEY environment variable to be set.
     """
-    from mixseek.agents.member.factory import MemberAgentFactory
-
-    MemberAgentFactory.register_agent("tavily_search", GroqTavilySearchAgent)
-    MemberAgentFactory.register_agent(
-        "claudecode_tavily_search", ClaudeCodeTavilySearchAgent
-    )
+    _register_agents(TAVILY_AGENTS)
 
 
 def register_all_agents() -> None:
@@ -155,12 +180,8 @@ def register_playwright_agents() -> None:
             pip install mixseek-plus[playwright]
             playwright install chromium
     """
-    from mixseek.agents.member.factory import MemberAgentFactory
-
     from mixseek_plus.agents.playwright_markdown_fetch_agent import (
         PlaywrightMarkdownFetchAgent,
     )
 
-    MemberAgentFactory.register_agent(
-        "playwright_markdown_fetch", PlaywrightMarkdownFetchAgent
-    )
+    _register_agents({"playwright_markdown_fetch": PlaywrightMarkdownFetchAgent})

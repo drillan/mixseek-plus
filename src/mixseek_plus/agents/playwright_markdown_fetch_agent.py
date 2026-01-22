@@ -18,6 +18,7 @@ from mixseek_plus.agents.base_playwright_agent import (
     BasePlaywrightAgent,
     FetchResult,
 )
+from mixseek_plus.agents.mixins.claudecode_toolset import ClaudeCodeToolsetMixin
 from mixseek_plus.utils.verbose import (
     MockRunContext,
     ToolLike,
@@ -40,7 +41,7 @@ class PlaywrightDeps:
     agent: PlaywrightMarkdownFetchAgent
 
 
-class PlaywrightMarkdownFetchAgent(BasePlaywrightAgent):
+class PlaywrightMarkdownFetchAgent(ClaudeCodeToolsetMixin, BasePlaywrightAgent):
     """Playwright-based web page fetcher with Markdown conversion.
 
     This agent fetches web pages using Playwright browser automation and
@@ -122,62 +123,7 @@ class PlaywrightMarkdownFetchAgent(BasePlaywrightAgent):
 
         return self._agent  # type: ignore[return-value]
 
-    def _register_toolsets_if_claudecode(self) -> None:
-        """Register toolsets with ClaudeCodeModel if applicable.
-
-        ClaudeCodeModel requires explicit registration of tool functions
-        via set_agent_toolsets() after Agent creation. This method also:
-        - Wraps tool functions to inject PlaywrightDeps context
-        - Adds MCP tool names to allowed_tools to ensure Claude can call them
-
-        The MCP tool naming convention is: mcp__<server_name>__<tool_name>
-        For pydantic-ai tools, the server name is 'pydantic_tools'.
-        """
-        try:
-            from claudecode_model import ClaudeCodeModel
-            from claudecode_model.mcp_integration import MCP_SERVER_NAME
-
-            if isinstance(self._model, ClaudeCodeModel) and self._agent is not None:
-                # Access the internal toolset from the agent
-                toolset = getattr(self._agent, "_function_toolset", None)
-                if toolset is not None:
-                    tools = list(toolset.tools.values())
-                    if tools:
-                        # Wrap tools to inject PlaywrightDeps context
-                        wrapped_tools = [
-                            self._wrap_tool_for_mcp(tool) for tool in tools
-                        ]
-                        self._model.set_agent_toolsets(wrapped_tools)  # type: ignore[arg-type]
-
-                        # Add MCP tool names to allowed_tools
-                        # MCP tools are named: mcp__<server_name>__<tool_name>
-                        mcp_tool_names = [
-                            f"mcp__{MCP_SERVER_NAME}__{tool.name}" for tool in tools
-                        ]
-
-                        # Update allowed_tools on the model
-                        if self._model._allowed_tools is None:
-                            self._model._allowed_tools = mcp_tool_names
-                        else:
-                            # Extend existing allowed_tools
-                            self._model._allowed_tools = list(
-                                set(self._model._allowed_tools) | set(mcp_tool_names)
-                            )
-        except ImportError as e:
-            # Only suppress if claudecode_model package itself is missing
-            # Use ImportError.name attribute for reliable module detection
-            missing_module = getattr(e, "name", None)
-            if missing_module is None or not missing_module.startswith(
-                "claudecode_model"
-            ):
-                # Log unexpected import errors with full traceback for debugging
-                logger.error(
-                    "ClaudeCode model import failed unexpectedly: %s",
-                    e,
-                    exc_info=True,
-                )
-
-    def _wrap_tool_for_mcp(self, tool: ToolLike) -> ToolLike:
+    def _wrap_tool_for_mcp_impl(self, tool: ToolLike) -> ToolLike:
         """Wrap a pydantic-ai tool to inject PlaywrightDeps context.
 
         When tools are called via MCP, pydantic-ai's RunContext is not available.

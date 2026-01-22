@@ -390,13 +390,13 @@ class TestClaudeCodeTavilySearchAgentToolsetRegistration:
         agent = ClaudeCodeTavilySearchAgent(config)
 
         # Verify allowed_tools was updated with MCP tool names
-        assert agent._model._allowed_tools is not None
-        assert len(agent._model._allowed_tools) >= 3
+        assert agent._model._allowed_tools is not None  # type: ignore[attr-defined]
+        assert len(agent._model._allowed_tools) >= 3  # type: ignore[attr-defined]
 
         # Check MCP naming convention
         mcp_tool_names = [
             t
-            for t in agent._model._allowed_tools
+            for t in agent._model._allowed_tools  # type: ignore[attr-defined]
             if t.startswith("mcp__pydantic_tools__tavily_")
         ]
         assert len(mcp_tool_names) == 3
