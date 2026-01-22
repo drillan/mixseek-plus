@@ -39,6 +39,7 @@ MixSeek-Coreの評価設定ファイル（evaluator.toml）と判定設定ファ
 |-----------|------|------|
 | `ClarityCoherence` | 明確性と一貫性 | 読みやすさ重視のタスク |
 | `Coverage` | カバレッジ | 網羅性重視のタスク |
+| `LLMPlain` | 汎用LLM評価 | カスタム評価基準が必要なタスク |
 | `Relevance` | 関連性 | 的確さ重視のタスク |
 
 ### Step 3: 設定ファイルの生成
@@ -73,6 +74,15 @@ timeout_seconds = 60
 ```bash
 $MIXSEEK_WORKSPACE/configs/evaluators/evaluator.toml
 $MIXSEEK_WORKSPACE/configs/judgment/judgment.toml
+```
+
+**重要**: カスタムパス（`configs/evaluators/`や`configs/judgment/`）を使用する場合は、必ず`orchestrator.toml`でパスを明示的に指定してください。指定しないとデフォルトパス（`configs/evaluator.toml`、`configs/judgment.toml`）が検索され、設定が反映されません。
+
+```toml
+# orchestrator.toml
+[orchestrator]
+evaluator_config = "configs/evaluators/evaluator.toml"
+judgment_config = "configs/judgment/judgment.toml"
 ```
 
 ### Step 5: 設定ファイルの検証（必須）
@@ -137,6 +147,34 @@ uv run python .skills/mixseek-config-validate/scripts/validate-config.py \
 - Q&A
 - カスタマーサポート
 - 検索結果の評価
+
+### LLMPlain（汎用LLM評価）
+
+`system_instruction`で定義したカスタム評価基準に基づいてLLMが評価します。
+
+**特徴**:
+- 事前定義された評価ロジックを持たない
+- `system_instruction`で完全にカスタマイズ可能
+- 特殊な評価基準が必要な場合に使用
+
+**推奨用途**:
+- ドメイン固有の評価（法律、医療など）
+- プロジェクト固有の品質基準
+- 他のメトリクスでカバーできない観点
+
+**設定例**:
+```toml
+[[metrics]]
+name = "LLMPlain"
+weight = 0.5
+system_instruction = """
+セキュリティ観点から回答を評価してください:
+1. 機密情報の漏洩リスク
+2. 安全なコーディング実践
+3. 脆弱性の有無
+0-100のスコアで評価してください。
+"""
+```
 
 ## 例
 
@@ -268,7 +306,7 @@ Error: Unknown metric name
 ```
 
 **解決方法**:
-- 有効なメトリクス名を使用: `ClarityCoherence`, `Coverage`, `Relevance`
+- 有効なメトリクス名を使用: `ClarityCoherence`, `Coverage`, `LLMPlain`, `Relevance`
 - 大文字小文字に注意
 
 ### 判定が不安定

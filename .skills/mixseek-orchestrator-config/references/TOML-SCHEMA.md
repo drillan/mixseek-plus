@@ -28,6 +28,29 @@
 | `min_rounds` | integer | 2 | >=1 | 最小ラウンド数 |
 | `submission_timeout_seconds` | integer | 300 | >0 | Submission生成のタイムアウト |
 | `judgment_timeout_seconds` | integer | 60 | >0 | Judgment処理のタイムアウト |
+| `evaluator_config` | string | null | - | Evaluator設定ファイルパス（重要：下記参照） |
+| `judgment_config` | string | null | - | Judgment設定ファイルパス（重要：下記参照） |
+| `prompt_builder_config` | string | null | - | PromptBuilder設定ファイルパス |
+
+### 設定ファイルパス（重要）
+
+**`evaluator_config`、`judgment_config`、`prompt_builder_config`** を指定しない場合、以下のデフォルトパスが検索されます：
+
+| フィールド | デフォルト検索パス |
+|-----------|-------------------|
+| `evaluator_config` | `configs/evaluator.toml` |
+| `judgment_config` | `configs/judgment.toml` |
+| `prompt_builder_config` | `configs/prompt_builder.toml` |
+
+**注意**: カスタムパス（例：`configs/evaluators/evaluator.toml`）を使用する場合は、必ず明示的に指定してください。指定しないとデフォルト設定（Gemini等）が使用されます。
+
+```toml
+[orchestrator]
+# カスタムパスを使用する場合は明示的に指定
+evaluator_config = "configs/evaluators/evaluator.toml"
+judgment_config = "configs/judgment/judgment.toml"
+prompt_builder_config = "configs/prompt_builder.toml"
+```
 
 ## バリデーションルール
 
@@ -82,6 +105,11 @@ min_rounds = 2
 timeout_per_team_seconds = 900
 submission_timeout_seconds = 600
 judgment_timeout_seconds = 120
+
+# 関連設定ファイル（カスタムパス使用時は必須）
+evaluator_config = "configs/evaluators/evaluator.toml"
+judgment_config = "configs/judgment/judgment.toml"
+prompt_builder_config = "configs/prompt_builder.toml"
 
 # 競合チーム設定
 [[orchestrator.teams]]
@@ -175,6 +203,22 @@ config = "/home/user/workspace/configs/agents/team-a.toml"  # ❌
 ```
 
 ## トラブルシューティング
+
+### Evaluator/JudgmentでデフォルトモデルGeminiが使用される
+
+**症状**: `evaluator.toml`や`judgment.toml`でClaudeCodeを設定したのに、ログでGeminiが使用されている
+
+**原因**: `orchestrator.toml`に`evaluator_config`と`judgment_config`のパスが指定されていない
+
+**解決策**:
+```toml
+[orchestrator]
+# カスタム設定ファイルのパスを明示的に指定
+evaluator_config = "configs/evaluators/evaluator.toml"
+judgment_config = "configs/judgment/judgment.toml"
+```
+
+**注意**: デフォルトでは`configs/evaluator.toml`と`configs/judgment.toml`が検索されます。`configs/evaluators/`や`configs/judgment/`などのカスタムパスを使用する場合は、必ず明示的に指定してください。
 
 ### チーム設定が見つからない
 

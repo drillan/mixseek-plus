@@ -49,6 +49,7 @@ def _configure_member_agents_logging() -> None:
     """Configure member_agents logger for DEBUG level (internal common function).
 
     Sets the mixseek.member_agents logger and its file handlers to DEBUG level.
+    Also configures claudecode_model logger for DEBUG level when verbose mode is enabled.
     This is the shared implementation used by both ensure_verbose_logging_configured()
     and configure_verbose_logging_for_mode().
     """
@@ -58,6 +59,20 @@ def _configure_member_agents_logging() -> None:
     for handler in member_agents_logger.handlers:
         if hasattr(handler, "baseFilename"):  # FileHandler
             handler.setLevel(logging.DEBUG)
+
+    # Configure claudecode_model logger for DEBUG level.
+    # This enables visibility into ClaudeCodeModel's internal operations
+    # (API calls, tool executions, errors) when verbose mode is active,
+    # which is essential for debugging ClaudeCode-based agents.
+    claudecode_logger = logging.getLogger("claudecode_model")
+    claudecode_logger.setLevel(logging.DEBUG)
+
+    # Add a StreamHandler if not already present (for console output)
+    if not any(isinstance(h, logging.StreamHandler) for h in claudecode_logger.handlers):
+        handler = logging.StreamHandler()
+        handler.setLevel(logging.DEBUG)
+        handler.setFormatter(logging.Formatter("%(name)s - %(levelname)s - %(message)s"))
+        claudecode_logger.addHandler(handler)
 
 
 def ensure_verbose_logging_configured() -> None:
