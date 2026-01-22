@@ -36,11 +36,13 @@ TAVILY_AGENTS: AgentRegistration = {
 }
 
 __all__ = [
+    # Agent classes
     "GroqPlainAgent",
     "GroqWebSearchAgent",
     "GroqTavilySearchAgent",
     "ClaudeCodePlainAgent",
     "ClaudeCodeTavilySearchAgent",
+    # Registration functions
     "register_groq_agents",
     "register_claudecode_agents",
     "register_tavily_agents",
@@ -48,6 +50,11 @@ __all__ = [
     # Playwright agents (loaded lazily to avoid import errors when playwright is not installed)
     "PlaywrightMarkdownFetchAgent",
     "register_playwright_agents",
+    # Helper function and constants
+    "_register_agents",
+    "GROQ_AGENTS",
+    "CLAUDECODE_AGENTS",
+    "TAVILY_AGENTS",
 ]
 
 

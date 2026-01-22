@@ -4,10 +4,105 @@ Tests cover:
 - GR-053: Factory registration for groq_plain and groq_web_search
 - GR-054: TOML configuration support via type field
 - CC-032, CC-033, CC-071: Factory registration for claudecode_plain
+- _register_agents helper function
 """
 
 from mixseek.agents.member.factory import MemberAgentFactory
 from mixseek.models.member_agent import MemberAgentConfig
+
+
+class TestRegisterAgentsHelper:
+    """Tests for the _register_agents() helper function."""
+
+    def test_register_agents_helper_exists(self) -> None:
+        """_register_agents helper function should exist."""
+        from mixseek_plus.agents import _register_agents
+
+        assert callable(_register_agents)
+
+    def test_register_agents_with_single_agent(self) -> None:
+        """_register_agents should register a single agent correctly."""
+        from mixseek_plus.agents import GroqPlainAgent, _register_agents
+
+        # Clear any existing registration for test isolation
+        test_type = "test_single_agent"
+
+        _register_agents({test_type: GroqPlainAgent})
+
+        assert test_type in MemberAgentFactory._agent_classes
+        assert MemberAgentFactory._agent_classes[test_type] is GroqPlainAgent
+
+    def test_register_agents_with_multiple_agents(self) -> None:
+        """_register_agents should register multiple agents correctly."""
+        from mixseek_plus.agents import (
+            ClaudeCodePlainAgent,
+            GroqPlainAgent,
+            _register_agents,
+        )
+
+        test_agents = {
+            "test_multi_1": GroqPlainAgent,
+            "test_multi_2": ClaudeCodePlainAgent,
+        }
+
+        _register_agents(test_agents)
+
+        assert "test_multi_1" in MemberAgentFactory._agent_classes
+        assert "test_multi_2" in MemberAgentFactory._agent_classes
+        assert MemberAgentFactory._agent_classes["test_multi_1"] is GroqPlainAgent
+        assert MemberAgentFactory._agent_classes["test_multi_2"] is ClaudeCodePlainAgent
+
+    def test_register_agents_is_idempotent(self) -> None:
+        """Multiple calls to _register_agents with same data should be safe."""
+        from mixseek_plus.agents import GROQ_AGENTS, _register_agents
+
+        test_type = "groq_plain"  # Use existing constant
+
+        _register_agents(GROQ_AGENTS)
+        _register_agents(GROQ_AGENTS)
+        _register_agents(GROQ_AGENTS)
+
+        assert test_type in MemberAgentFactory._agent_classes
+
+    def test_register_agents_with_empty_dict(self) -> None:
+        """_register_agents should handle empty dict without error."""
+        from mixseek_plus.agents import _register_agents
+
+        # Should not raise
+        _register_agents({})
+
+
+class TestAgentRegistrationConstants:
+    """Tests for agent registration constants."""
+
+    def test_groq_agents_constant_exists(self) -> None:
+        """GROQ_AGENTS constant should exist and contain correct agents."""
+        from mixseek_plus.agents import GROQ_AGENTS, GroqPlainAgent, GroqWebSearchAgent
+
+        assert "groq_plain" in GROQ_AGENTS
+        assert "groq_web_search" in GROQ_AGENTS
+        assert GROQ_AGENTS["groq_plain"] is GroqPlainAgent
+        assert GROQ_AGENTS["groq_web_search"] is GroqWebSearchAgent
+
+    def test_claudecode_agents_constant_exists(self) -> None:
+        """CLAUDECODE_AGENTS constant should exist and contain correct agents."""
+        from mixseek_plus.agents import CLAUDECODE_AGENTS, ClaudeCodePlainAgent
+
+        assert "claudecode_plain" in CLAUDECODE_AGENTS
+        assert CLAUDECODE_AGENTS["claudecode_plain"] is ClaudeCodePlainAgent
+
+    def test_tavily_agents_constant_exists(self) -> None:
+        """TAVILY_AGENTS constant should exist and contain correct agents."""
+        from mixseek_plus.agents import (
+            TAVILY_AGENTS,
+            ClaudeCodeTavilySearchAgent,
+            GroqTavilySearchAgent,
+        )
+
+        assert "tavily_search" in TAVILY_AGENTS
+        assert "claudecode_tavily_search" in TAVILY_AGENTS
+        assert TAVILY_AGENTS["tavily_search"] is GroqTavilySearchAgent
+        assert TAVILY_AGENTS["claudecode_tavily_search"] is ClaudeCodeTavilySearchAgent
 
 
 class TestClaudeCodeFactoryRegistration:
