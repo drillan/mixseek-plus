@@ -51,7 +51,6 @@ docs = [
 [tool.uv.sources]
 mixseek-core = { git = "https://github.com/mixseek/mixseek-core.git" }
 claudecode-model = { git = "https://github.com/drillan/claudecode-model.git" }
-claude-agent-sdk = { git = "https://github.com/drillan/claude-agent-sdk-python.git", branch = "fix/string-prompt-mcp-transport" }
 
 [tool.mypy]
 python_version = "3.13"
