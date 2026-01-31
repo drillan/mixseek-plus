@@ -11,6 +11,7 @@ metadata:
   author: drillan
   category: quality-gate
   repository: https://github.com/drillan/speckit-gates
+  internal: true
 ---
 
 # implementation-verify

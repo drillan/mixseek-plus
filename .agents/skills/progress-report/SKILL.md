@@ -11,6 +11,7 @@ metadata:
   author: drillan
   category: reporting
   repository: https://github.com/drillan/speckit-gates
+  internal: true
 ---
 
 # progress-report

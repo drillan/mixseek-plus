@@ -29,8 +29,7 @@ MixSeek-Core用のAgent Skillsコレクションです。
 ## インストール
 
 ```bash
-# mixseekスキルのみをインストール
-npx skills add drillan/mixseek-plus --skill "mixseek-*" --skill "detect-python-command"
+npx skills add drillan/mixseek-plus
 ```
 
 ## 詳細

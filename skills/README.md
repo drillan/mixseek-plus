@@ -7,14 +7,8 @@ MixSeek-Core用のAgent Skillsコレクションです。AIコーディングエ
 ### skills CLIを使用（推奨）
 
 ```bash
-# mixseek-plusからスキルをインストール（mixseekスキルのみ選択）
-npx skills add drillan/mixseek-plus --skill "mixseek-*" --skill "detect-python-command"
-
-# または全スキルを表示して選択
 npx skills add drillan/mixseek-plus
 ```
-
-**注意**: リポジトリには開発用スキルも含まれています。MixSeek関連のスキルのみをインストールする場合は `--skill` オプションを使用してください。
 
 ### 手動インストール
 

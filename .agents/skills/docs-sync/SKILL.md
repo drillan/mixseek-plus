@@ -11,6 +11,7 @@ metadata:
   author: drillan
   category: automation
   repository: https://github.com/drillan/speckit-gates
+  internal: true
 ---
 
 # docs-sync
