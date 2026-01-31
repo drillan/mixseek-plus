@@ -60,13 +60,14 @@ class TestCLICommands:
     def test_version_command(
         self, cli_runner: CliRunner, mock_groq_api_key: str
     ) -> None:
-        """GR-073: --version should show version info."""
+        """GR-073: --version should show mixseek-plus version info."""
+        from mixseek_plus import __version__
         from mixseek_plus.cli import app
 
         result = cli_runner.invoke(app, ["--version"])
-        # Should not error (exit code 0) even if version not set
-        # The important thing is that the command runs
-        assert result.exit_code == 0 or "--version" in result.output.lower()
+        assert result.exit_code == 0
+        assert "mixseek-plus version" in result.output
+        assert __version__ in result.output
 
     def test_help_command(self, cli_runner: CliRunner, mock_groq_api_key: str) -> None:
         """GR-073: --help should show help text compatible with mixseek-core."""

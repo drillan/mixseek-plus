@@ -11,6 +11,8 @@ Requirements:
 - CC-052: ClaudeCode models work without additional setup
 """
 
+import typer
+
 # IMPORTANT: Apply patch BEFORE importing mixseek.cli.main
 # This ensures Groq and ClaudeCode support is enabled before any mixseek-core
 # modules are loaded. The order of imports here is critical.
@@ -24,9 +26,32 @@ register_claudecode_agents()
 # Now import the core app after patching
 from mixseek.cli.main import app as core_app  # noqa: E402
 
+from mixseek_plus import __version__  # noqa: E402
+
 # Create our app by directly using the core app
 # This ensures full compatibility with mixseek-core (GR-073)
 app = core_app
+
+
+def version_callback(value: bool) -> None:
+    """Display mixseek-plus version information."""
+    if value:
+        typer.echo(f"mixseek-plus version {__version__}")
+        raise typer.Exit()
+
+
+@app.callback()
+def main_callback(
+    version: bool | None = typer.Option(
+        None,
+        "--version",
+        "-v",
+        help="Show version and exit",
+        callback=version_callback,
+        is_eager=True,
+    ),
+) -> None:
+    """MixSeek-Plus CLI - Extended multi-agent framework with Groq and ClaudeCode support."""
 
 
 def ensure_patched() -> None:

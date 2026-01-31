@@ -1,5 +1,9 @@
 """mixseek-plus: mixseek-coreの拡張パッケージ."""
 
+from importlib.metadata import version
+
+__version__ = version("mixseek-plus")
+
 from mixseek_plus.agents import (
     ClaudeCodePlainAgent,
     ClaudeCodeTavilySearchAgent,
