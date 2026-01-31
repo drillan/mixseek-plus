@@ -2,6 +2,27 @@
 
 MixSeek-Core用のAgent Skillsコレクションです。AIコーディングエージェント（Claude Code、Codex、Gemini CLI等）がMixSeekのワークスペースを自然言語で管理できるようにします。
 
+## インストール
+
+### skills CLIを使用（推奨）
+
+```bash
+# skills CLIのインストール
+npm install -g @anthropic/skills
+
+# mixseek-plusからスキルをインストール
+npx skills add mixseek/mixseek-plus
+```
+
+### 手動インストール
+
+1. `skills/` ディレクトリをプロジェクトにコピー
+2. 各スキルの `SKILL.md` をAIアシスタントに読み込ませる
+
+## ライセンス
+
+Apache-2.0
+
 ## スキル一覧
 
 | スキル名 | 説明 | トリガーワード例 |
@@ -12,6 +33,7 @@ MixSeek-Core用のAgent Skillsコレクションです。AIコーディングエ
 | `mixseek-evaluator-config` | 評価設定生成 | 「評価設定を作成」「スコアリング設定」 |
 | `mixseek-config-validate` | 設定検証 | 「設定を検証」「TOMLをチェック」 |
 | `mixseek-model-list` | モデル一覧取得 | 「使えるモデル」「モデル一覧」 |
+| `mixseek-prompt-builder` | プロンプトビルダー設定 | 「プロンプトを設定」「ラウンド別プロンプト」 |
 | `mixseek-debug` | デバッグ機能・ログ制御 | 「デバッグ」「verbose」「ログを有効化」 |
 | `detect-python-command` | Pythonコマンド判別・実行 | 「Pythonコマンドを確認」「どのpythonを使う」 |
 
@@ -87,18 +109,18 @@ Agent: configs/agents/team-web-research.toml を検証します...
 pip install skills-ref
 
 # 単一スキル検証
-agentskills validate .skills/mixseek-workspace-init
+skills-ref validate skills/mixseek-workspace-init
 
 # 全スキル検証
-for skill in .skills/mixseek-*; do
-    agentskills validate "$skill"
+for skill in skills/*/; do
+    skills-ref validate "$skill"
 done
 ```
 
 ## ディレクトリ構造
 
 ```
-.skills/
+skills/
 ├── README.md                      # このファイル
 ├── detect-python-command/         # Pythonコマンド判別・実行
 │   ├── SKILL.md
@@ -107,6 +129,9 @@ done
 │       └── run-python.sh          # スクリプト実行（推奨）
 ├── mixseek-workspace-init/        # ワークスペース初期化
 │   ├── SKILL.md
+│   ├── assets/                    # テンプレートファイル
+│   │   └── presets/
+│   │       └── claudecode.toml
 │   └── scripts/
 │       └── init-workspace.sh
 ├── mixseek-team-config/           # チーム設定生成
@@ -129,8 +154,17 @@ done
 │       └── validate-config.py
 ├── mixseek-model-list/            # モデル一覧
 │   ├── SKILL.md
+│   └── scripts/
+│       └── fetch-models.py        # API経由モデル取得
+├── mixseek-prompt-builder/        # プロンプトビルダー設定
+│   ├── SKILL.md
+│   ├── assets/                    # テンプレートファイル
+│   │   ├── default.toml
+│   │   ├── deep-research.toml
+│   │   └── single-round.toml
 │   └── references/
-│       └── VALID-MODELS.md
+│       ├── TOML-SCHEMA.md
+│       └── JINJA2-VARIABLES.md
 └── mixseek-debug/                 # デバッグ機能
     ├── SKILL.md
     └── scripts/

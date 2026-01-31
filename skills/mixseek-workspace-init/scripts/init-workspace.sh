@@ -89,8 +89,8 @@ main() {
 
     # Copy preset templates
     SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-    if [ -d "$SCRIPT_DIR/../templates/presets" ]; then
-        for preset_file in "$SCRIPT_DIR/../templates/presets/"*.toml; do
+    if [ -d "$SCRIPT_DIR/../assets/presets" ]; then
+        for preset_file in "$SCRIPT_DIR/../assets/presets/"*.toml; do
             if [ -f "$preset_file" ]; then
                 local preset_name
                 preset_name="$(basename "$preset_file")"
@@ -103,6 +103,8 @@ main() {
                 fi
             fi
         done
+    else
+        print_warning "Presets directory not found: $SCRIPT_DIR/../assets/presets"
     fi
 
     echo ""

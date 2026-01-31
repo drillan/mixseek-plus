@@ -1,6 +1,11 @@
 ---
 name: mixseek-team-config
 description: MixSeekのチーム設定ファイル（team.toml）を生成します。「チームを作成」「エージェント設定を生成」「Web検索チームを作って」「分析チームを設定」といった依頼で使用してください。Leader AgentとMember Agentの構成を定義します。
+license: Apache-2.0
+compatibility: Requires mixseek-core or mixseek-plus. Python 3.13+, uv recommended.
+metadata:
+  author: mixseek
+  version: "1.0.0"
 ---
 
 # MixSeek チーム設定生成
@@ -91,7 +96,7 @@ $MIXSEEK_WORKSPACE/configs/agents/team-<team-id>.toml
 **生成後は必ず検証を実行してください。**
 
 ```bash
-uv run python .skills/mixseek-config-validate/scripts/validate-config.py \
+uv run python skills/mixseek-config-validate/scripts/validate-config.py \
     $MIXSEEK_WORKSPACE/configs/agents/team-<team-id>.toml --type team
 ```
 
@@ -224,4 +229,4 @@ temperature = 0.2
 
 - TOMLスキーマ詳細: `references/TOML-SCHEMA.md`
 - Member Agentタイプ: `references/MEMBER-TYPES.md`
-- 利用可能モデル: `.skills/mixseek-model-list/references/VALID-MODELS.md`
+- 利用可能モデル: `skills/mixseek-model-list/references/VALID-MODELS.md`

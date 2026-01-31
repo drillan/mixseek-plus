@@ -1,6 +1,11 @@
 ---
 name: detect-python-command
 description: 現在の環境で適切なPythonコマンドを判別し、スクリプトを実行します。「Pythonコマンドを確認」「どのpythonを使う」「Python実行方法」といった依頼や、他のスキルからPythonスクリプトを実行する前に使用してください。
+license: Apache-2.0
+compatibility: Requires mixseek-core or mixseek-plus. Python 3.13+, uv recommended.
+metadata:
+  author: mixseek
+  version: "1.0.0"
 ---
 
 # Python コマンド判別・実行
@@ -20,17 +25,17 @@ description: 現在の環境で適切なPythonコマンドを判別し、スク�
 `run-python.sh` を使用して、Pythonスクリプトを直接実行します：
 
 ```bash
-.skills/detect-python-command/scripts/run-python.sh script.py [args...]
+skills/detect-python-command/scripts/run-python.sh script.py [args...]
 ```
 
 **例**:
 ```bash
 # 設定ファイルの検証
-.skills/detect-python-command/scripts/run-python.sh \
-    .skills/mixseek-config-validate/scripts/validate-config.py config.toml
+skills/detect-python-command/scripts/run-python.sh \
+    skills/mixseek-config-validate/scripts/validate-config.py config.toml
 
 # 引数付きで実行
-.skills/detect-python-command/scripts/run-python.sh script.py --verbose --output result.json
+skills/detect-python-command/scripts/run-python.sh script.py --verbose --output result.json
 ```
 
 ### 方法2: コマンドの確認のみ
@@ -39,10 +44,10 @@ description: 現在の環境で適切なPythonコマンドを判別し、スク�
 
 ```bash
 # 標準モード（コマンド名のみ）
-.skills/detect-python-command/scripts/detect-python.sh
+skills/detect-python-command/scripts/detect-python.sh
 
 # 詳細モード（判別過程を表示）
-.skills/detect-python-command/scripts/detect-python.sh --verbose
+skills/detect-python-command/scripts/detect-python.sh --verbose
 ```
 
 ## 判別ロジック
@@ -63,8 +68,8 @@ description: 現在の環境で適切なPythonコマンドを判別し、スク�
 
 ```bash
 # mixseek-config-validate からの使用例
-.skills/detect-python-command/scripts/run-python.sh \
-    .skills/mixseek-config-validate/scripts/validate-config.py config.toml --type team
+skills/detect-python-command/scripts/run-python.sh \
+    skills/mixseek-config-validate/scripts/validate-config.py config.toml --type team
 ```
 
 ### 環境情報の確認
@@ -74,7 +79,7 @@ User: このプロジェクトでどのPythonコマンドを使えばいい？
 
 Agent: 判別スクリプトを実行します...
 
-       $ .skills/detect-python-command/scripts/detect-python.sh --verbose
+       $ skills/detect-python-command/scripts/detect-python.sh --verbose
 
        出力:
        Detecting Python command...

@@ -121,7 +121,7 @@
 
 ## Agent Skills
 
-MixSeek-Plusは`.skills/`ディレクトリにAgent Skills（agentskills.io仕様準拠）を提供しています。
+MixSeek-Plusは`skills/`ディレクトリにAgent Skills（agentskills.io仕様準拠）を提供しています。
 
 ### 使用方法（重要）
 
@@ -129,15 +129,15 @@ MixSeek-Plusは`.skills/`ディレクトリにAgent Skills（agentskills.io仕�
 
 | トリガーキーワード | 実行するスキル | 読み込むファイル |
 |-------------------|---------------|-----------------|
-| 「ワークスペースを初期化」「mixseekのセットアップ」「ワークスペースを作成」「プリセットを作成」「claudecode.tomlを生成」 | workspace-init | `.skills/mixseek-workspace-init/SKILL.md` |
-| 「チームを作成」「エージェント設定を生成」「チーム設定」 | team-config | `.skills/mixseek-team-config/SKILL.md` |
-| 「オーケストレーターを設定」「チーム競合設定」「複数チームで競わせる」 | orchestrator-config | `.skills/mixseek-orchestrator-config/SKILL.md` |
-| 「評価設定を作成」「スコアリング設定」「メトリクスを設定」 | evaluator-config | `.skills/mixseek-evaluator-config/SKILL.md` |
-| 「設定を検証」「TOMLをチェック」「バリデーション」「ワークスペースの検証」 | config-validate | `.skills/mixseek-config-validate/SKILL.md` |
-| 「使えるモデル」「モデル一覧」「どのモデルがある」「モデルを取得」「APIからモデル」 | model-list | `.skills/mixseek-model-list/SKILL.md` |
-| 「プロンプトを設定」「プロンプトビルダーを作成」「ラウンド別プロンプト」「プロンプトテンプレート」 | prompt-builder | `.skills/mixseek-prompt-builder/SKILL.md` |
-| 「デバッグ」「ログを有効化」「verbose」「ログレベル」「デバッグモード」 | debug | `.skills/mixseek-debug/SKILL.md` |
-| 「ワークスペースの設定を調査」「設定の問題を調べて」「なぜ○○モデルが使われた」「設定が反映されない」「デフォルト値が使われる」 | 複数スキル参照 | `.skills/mixseek-orchestrator-config/SKILL.md`, `.skills/mixseek-evaluator-config/SKILL.md`, `.skills/mixseek-team-config/SKILL.md` |
+| 「ワークスペースを初期化」「mixseekのセットアップ」「ワークスペースを作成」「プリセットを作成」「claudecode.tomlを生成」 | workspace-init | `skills/mixseek-workspace-init/SKILL.md` |
+| 「チームを作成」「エージェント設定を生成」「チーム設定」 | team-config | `skills/mixseek-team-config/SKILL.md` |
+| 「オーケストレーターを設定」「チーム競合設定」「複数チームで競わせる」 | orchestrator-config | `skills/mixseek-orchestrator-config/SKILL.md` |
+| 「評価設定を作成」「スコアリング設定」「メトリクスを設定」 | evaluator-config | `skills/mixseek-evaluator-config/SKILL.md` |
+| 「設定を検証」「TOMLをチェック」「バリデーション」「ワークスペースの検証」 | config-validate | `skills/mixseek-config-validate/SKILL.md` |
+| 「使えるモデル」「モデル一覧」「どのモデルがある」「モデルを取得」「APIからモデル」 | model-list | `skills/mixseek-model-list/SKILL.md` |
+| 「プロンプトを設定」「プロンプトビルダーを作成」「ラウンド別プロンプト」「プロンプトテンプレート」 | prompt-builder | `skills/mixseek-prompt-builder/SKILL.md` |
+| 「デバッグ」「ログを有効化」「verbose」「ログレベル」「デバッグモード」 | debug | `skills/mixseek-debug/SKILL.md` |
+| 「ワークスペースの設定を調査」「設定の問題を調べて」「なぜ○○モデルが使われた」「設定が反映されない」「デフォルト値が使われる」 | 複数スキル参照 | `skills/mixseek-orchestrator-config/SKILL.md`, `skills/mixseek-evaluator-config/SKILL.md`, `skills/mixseek-team-config/SKILL.md` |
 
 ### 実行手順
 
@@ -175,7 +175,7 @@ mixseek-plusでは以下の拡張プロバイダーとエージェントタイ�
 - `claudecode_tavily_search` - ClaudeCode + Tavily検索
 - `playwright_markdown_fetch` - Playwright + MarkItDown
 
-詳細は `.skills/mixseek-model-list/SKILL.md` および `.skills/mixseek-team-config/references/TOML-SCHEMA.md` を参照。
+詳細は `skills/mixseek-model-list/SKILL.md` および `skills/mixseek-team-config/references/TOML-SCHEMA.md` を参照。
 
 ## Recent Changes
 - 003-groq-provider: Added Python 3.13+ + pydantic-ai (GroqModel), mixseek-core (create_authenticated_model)
