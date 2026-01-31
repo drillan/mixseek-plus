@@ -1,6 +1,6 @@
 #!/bin/bash
 # MixSeek Debug Environment Variable Checker
-# Usage: bash .skills/mixseek-debug/scripts/check-debug-env.sh
+# Usage: bash skills/mixseek-debug/scripts/check-debug-env.sh
 
 echo "=== MixSeek Debug Environment Variables ==="
 echo ""

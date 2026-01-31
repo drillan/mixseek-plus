@@ -1,6 +1,11 @@
 ---
 name: mixseek-workspace-init
 description: MixSeekワークスペースを初期化し、設定ファイル用ディレクトリ構造を作成します。「ワークスペースを初期化」「mixseekのセットアップ」「設定ディレクトリを作成」「新しいプロジェクトを始める」といった依頼で使用してください。
+license: Apache-2.0
+compatibility: Requires mixseek-core or mixseek-plus. Python 3.13+, uv recommended.
+metadata:
+  author: mixseek
+  version: "1.0.0"
 ---
 
 # MixSeek ワークスペース初期化
@@ -35,7 +40,7 @@ echo $MIXSEEK_WORKSPACE
 
 ```bash
 # スクリプトの実行
-bash .skills/mixseek-workspace-init/scripts/init-workspace.sh <workspace-path>
+bash skills/mixseek-workspace-init/scripts/init-workspace.sh <workspace-path>
 ```
 
 または、手動で以下のディレクトリを作成:

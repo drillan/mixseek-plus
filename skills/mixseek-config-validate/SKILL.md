@@ -1,6 +1,11 @@
 ---
 name: mixseek-config-validate
 description: MixSeekの設定ファイル（team.toml、orchestrator.toml、evaluator.toml、judgment.toml）を検証します。「設定を検証」「TOMLをチェック」「設定ファイルの確認」「バリデーション」「ワークスペースの検証」といった依頼で使用してください。TOML構文とMixSeekスキーマへの準拠を確認します。
+license: Apache-2.0
+compatibility: Requires mixseek-core or mixseek-plus. Python 3.13+, uv recommended.
+metadata:
+  author: mixseek
+  version: "1.0.0"
 ---
 
 # MixSeek 設定検証
@@ -42,12 +47,12 @@ MixSeek-Coreの設定ファイルがTOML構文およびMixSeekスキーマに準
 
 ```bash
 # 特定ファイルの検証
-.skills/detect-python-command/scripts/run-python.sh \
-    .skills/mixseek-config-validate/scripts/validate-config.py <file-path>
+skills/detect-python-command/scripts/run-python.sh \
+    skills/mixseek-config-validate/scripts/validate-config.py <file-path>
 
 # ファイルタイプを指定して検証
-.skills/detect-python-command/scripts/run-python.sh \
-    .skills/mixseek-config-validate/scripts/validate-config.py <file-path> --type team
+skills/detect-python-command/scripts/run-python.sh \
+    skills/mixseek-config-validate/scripts/validate-config.py <file-path> --type team
 ```
 
 ### Step 3: 結果の報告
@@ -223,20 +228,20 @@ Error: Metric weights must sum to 1.0, got 0.8
 
 ```bash
 # 単一ファイル検証
-.skills/detect-python-command/scripts/run-python.sh \
-    .skills/mixseek-config-validate/scripts/validate-config.py path/to/config.toml
+skills/detect-python-command/scripts/run-python.sh \
+    skills/mixseek-config-validate/scripts/validate-config.py path/to/config.toml
 
 # タイプ指定
-.skills/detect-python-command/scripts/run-python.sh \
-    .skills/mixseek-config-validate/scripts/validate-config.py config.toml --type team
+skills/detect-python-command/scripts/run-python.sh \
+    skills/mixseek-config-validate/scripts/validate-config.py config.toml --type team
 
 # JSON出力
-.skills/detect-python-command/scripts/run-python.sh \
-    .skills/mixseek-config-validate/scripts/validate-config.py config.toml --json
+skills/detect-python-command/scripts/run-python.sh \
+    skills/mixseek-config-validate/scripts/validate-config.py config.toml --json
 
 # 詳細出力
-.skills/detect-python-command/scripts/run-python.sh \
-    .skills/mixseek-config-validate/scripts/validate-config.py config.toml --verbose
+skills/detect-python-command/scripts/run-python.sh \
+    skills/mixseek-config-validate/scripts/validate-config.py config.toml --verbose
 ```
 
 ## トラブルシューティング
@@ -263,7 +268,7 @@ Error: File not found
 
 ## 参照
 
-- **Pythonコマンド判別**: `.skills/detect-python-command/SKILL.md`
-- チーム設定スキーマ: `.skills/mixseek-team-config/references/TOML-SCHEMA.md`
-- オーケストレーター設定スキーマ: `.skills/mixseek-orchestrator-config/references/TOML-SCHEMA.md`
-- 評価設定スキーマ: `.skills/mixseek-evaluator-config/references/TOML-SCHEMA.md`
+- **Pythonコマンド判別**: `skills/detect-python-command/SKILL.md`
+- チーム設定スキーマ: `skills/mixseek-team-config/references/TOML-SCHEMA.md`
+- オーケストレーター設定スキーマ: `skills/mixseek-orchestrator-config/references/TOML-SCHEMA.md`
+- 評価設定スキーマ: `skills/mixseek-evaluator-config/references/TOML-SCHEMA.md`

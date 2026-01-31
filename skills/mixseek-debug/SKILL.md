@@ -1,6 +1,11 @@
 ---
 name: mixseek-debug
 description: MixSeek-Plusのデバッグ機能を有効化し、ログ出力を制御します。「デバッグモードを有効化」「verbose」「ログを出力」「ログレベル」「デバッグ設定」といった依頼で使用してください。
+license: Apache-2.0
+compatibility: Requires mixseek-core or mixseek-plus. Python 3.13+, uv recommended.
+metadata:
+  author: mixseek
+  version: "1.0.0"
 ---
 
 # MixSeek デバッグ機能
@@ -33,7 +38,7 @@ MixSeek-Plusは複数のデバッグ用環境変数を提供しています。�
 現在の環境変数設定を確認するには、以下のスクリプトを実行してください：
 
 ```bash
-bash .skills/mixseek-debug/scripts/check-debug-env.sh
+bash skills/mixseek-debug/scripts/check-debug-env.sh
 ```
 
 ### Step 2: CLI実行時の使用

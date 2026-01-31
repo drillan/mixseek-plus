@@ -1,6 +1,11 @@
 ---
 name: mixseek-orchestrator-config
 description: MixSeekのオーケストレーター設定ファイル（orchestrator.toml）を生成します。「オーケストレーターを設定」「チーム競合設定」「複数チームで競わせる」「マルチチーム実行設定」といった依頼で使用してください。複数チームを並列実行して最良の結果を選択する設定を定義します。
+license: Apache-2.0
+compatibility: Requires mixseek-core or mixseek-plus. Python 3.13+, uv recommended.
+metadata:
+  author: mixseek
+  version: "1.0.0"
 ---
 
 # MixSeek オーケストレーター設定生成
@@ -65,7 +70,7 @@ $MIXSEEK_WORKSPACE/configs/orchestrator-<name>.toml
 **生成後は必ず検証を実行してください。**
 
 ```bash
-uv run python .skills/mixseek-config-validate/scripts/validate-config.py \
+uv run python skills/mixseek-config-validate/scripts/validate-config.py \
     $MIXSEEK_WORKSPACE/configs/orchestrator.toml --type orchestrator
 ```
 
@@ -239,5 +244,5 @@ Error: Team execution timed out
 ## 参照
 
 - TOMLスキーマ詳細: `references/TOML-SCHEMA.md`
-- チーム設定: `.skills/mixseek-team-config/`
-- 評価設定: `.skills/mixseek-evaluator-config/`
+- チーム設定: `skills/mixseek-team-config/`
+- 評価設定: `skills/mixseek-evaluator-config/`

@@ -1,6 +1,11 @@
 ---
 name: mixseek-model-list
 description: MixSeek-Coreで利用可能なLLMモデルの一覧を表示します。「使えるモデル」「モデル一覧」「どのモデルがある」「モデルを取得」「APIからモデル」といった依頼で使用してください。API経由でプロバイダー別のモデル情報を動的取得し、推奨設定、互換性情報を提供します。
+license: Apache-2.0
+compatibility: Requires mixseek-core or mixseek-plus. Python 3.13+, uv recommended.
+metadata:
+  author: mixseek
+  version: "1.0.0"
 ---
 
 # MixSeek モデル一覧
@@ -60,20 +65,20 @@ echo "GROK_API_KEY: ${GROK_API_KEY:+設定済み}"
 
 ```bash
 # 全プロバイダーからモデル取得（MixSeek形式）
-.skills/detect-python-command/scripts/run-python.sh \
-    .skills/mixseek-model-list/scripts/fetch-models.py
+skills/detect-python-command/scripts/run-python.sh \
+    skills/mixseek-model-list/scripts/fetch-models.py
 
 # 特定プロバイダーのみ
-.skills/detect-python-command/scripts/run-python.sh \
-    .skills/mixseek-model-list/scripts/fetch-models.py --provider google
+skills/detect-python-command/scripts/run-python.sh \
+    skills/mixseek-model-list/scripts/fetch-models.py --provider google
 
 # JSON形式で出力
-.skills/detect-python-command/scripts/run-python.sh \
-    .skills/mixseek-model-list/scripts/fetch-models.py --json
+skills/detect-python-command/scripts/run-python.sh \
+    skills/mixseek-model-list/scripts/fetch-models.py --json
 
 # 詳細出力（エラー情報も表示）
-.skills/detect-python-command/scripts/run-python.sh \
-    .skills/mixseek-model-list/scripts/fetch-models.py --verbose --format text
+skills/detect-python-command/scripts/run-python.sh \
+    skills/mixseek-model-list/scripts/fetch-models.py --verbose --format text
 ```
 
 ## CLIコマンドリファレンス
@@ -190,8 +195,8 @@ provider:model-name
 
 ```bash
 # スクリプトを実行してAPIから最新のモデル一覧を取得
-.skills/detect-python-command/scripts/run-python.sh \
-    .skills/mixseek-model-list/scripts/fetch-models.py --format text
+skills/detect-python-command/scripts/run-python.sh \
+    skills/mixseek-model-list/scripts/fetch-models.py --format text
 ```
 
 出力例:
@@ -214,8 +219,8 @@ provider:model-name
 
 ```bash
 # JSON形式で取得し、code_exec_compatible を確認
-.skills/detect-python-command/scripts/run-python.sh \
-    .skills/mixseek-model-list/scripts/fetch-models.py --provider anthropic --json
+skills/detect-python-command/scripts/run-python.sh \
+    skills/mixseek-model-list/scripts/fetch-models.py --provider anthropic --json
 ```
 
 **ポイント**: `code_exec_compatible: true` のモデルが `code_execution` agent_type に対応
@@ -362,5 +367,5 @@ model = "groq:llama-3.3-70b-versatile"
 ## 参照
 
 - スクリプト: `scripts/fetch-models.py`
-- チーム設定: `.skills/mixseek-team-config/`
-- 評価設定: `.skills/mixseek-evaluator-config/`
+- チーム設定: `skills/mixseek-team-config/`
+- 評価設定: `skills/mixseek-evaluator-config/`

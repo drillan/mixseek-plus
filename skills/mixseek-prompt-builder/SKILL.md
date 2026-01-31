@@ -1,6 +1,11 @@
 ---
 name: mixseek-prompt-builder
 description: MixSeekのプロンプトビルダー設定ファイル（prompt_builder.toml）を生成します。「プロンプトを設定」「プロンプトビルダーを作成」「ラウンド別プロンプト」といった依頼で使用してください。
+license: Apache-2.0
+compatibility: Requires mixseek-core or mixseek-plus. Python 3.13+, uv recommended.
+metadata:
+  author: mixseek
+  version: "1.0.0"
 ---
 
 # MixSeek プロンプトビルダー設定生成
@@ -224,5 +229,5 @@ Jinja2構文エラー、変数展開の問題、マルチラインTOML文字列�
 
 - TOMLスキーマ詳細: `references/TOML-SCHEMA.md`
 - Jinja2変数詳細: `references/JINJA2-VARIABLES.md`
-- orchestrator設定: `.skills/mixseek-orchestrator-config/SKILL.md`
-- evaluator設定: `.skills/mixseek-evaluator-config/SKILL.md`
+- orchestrator設定: `skills/mixseek-orchestrator-config/SKILL.md`
+- evaluator設定: `skills/mixseek-evaluator-config/SKILL.md`

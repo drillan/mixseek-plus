@@ -1,6 +1,11 @@
 ---
 name: mixseek-evaluator-config
 description: MixSeekの評価設定ファイル（evaluator.toml、judgment.toml）を生成します。「評価設定を作成」「スコアリング設定」「判定設定を作って」「メトリクスを設定」といった依頼で使用してください。Submissionの評価基準と最終判定ロジックを定義します。
+license: Apache-2.0
+compatibility: Requires mixseek-core or mixseek-plus. Python 3.13+, uv recommended.
+metadata:
+  author: mixseek
+  version: "1.0.0"
 ---
 
 # MixSeek 評価設定生成
@@ -91,11 +96,11 @@ judgment_config = "configs/judgment/judgment.toml"
 
 ```bash
 # Evaluator設定の検証
-uv run python .skills/mixseek-config-validate/scripts/validate-config.py \
+uv run python skills/mixseek-config-validate/scripts/validate-config.py \
     $MIXSEEK_WORKSPACE/configs/evaluators/evaluator.toml --type evaluator
 
 # Judgment設定の検証
-uv run python .skills/mixseek-config-validate/scripts/validate-config.py \
+uv run python skills/mixseek-config-validate/scripts/validate-config.py \
     $MIXSEEK_WORKSPACE/configs/judgment/judgment.toml --type judgment
 ```
 
@@ -319,4 +324,4 @@ Error: Unknown metric name
 
 - TOMLスキーマ詳細: `references/TOML-SCHEMA.md`
 - 標準メトリクス: `references/METRICS.md`
-- オーケストレーター設定: `.skills/mixseek-orchestrator-config/`
+- オーケストレーター設定: `skills/mixseek-orchestrator-config/`
