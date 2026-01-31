@@ -7,11 +7,8 @@ MixSeek-Core用のAgent Skillsコレクションです。AIコーディングエ
 ### skills CLIを使用（推奨）
 
 ```bash
-# skills CLIのインストール
-npm install -g @anthropic/skills
-
 # mixseek-plusからスキルをインストール
-npx skills add mixseek/mixseek-plus
+npx skills add drillan/mixseek-plus
 ```
 
 ### 手動インストール
