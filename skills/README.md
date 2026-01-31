@@ -154,10 +154,8 @@ skills/
 │       └── validate-config.py
 ├── mixseek-model-list/            # モデル一覧
 │   ├── SKILL.md
-│   ├── scripts/
-│   │   └── fetch-models.py        # API経由モデル取得
-│   └── references/
-│       └── VALID-MODELS.md
+│   └── scripts/
+│       └── fetch-models.py        # API経由モデル取得
 ├── mixseek-prompt-builder/        # プロンプトビルダー設定
 │   ├── SKILL.md
 │   ├── assets/                    # テンプレートファイル

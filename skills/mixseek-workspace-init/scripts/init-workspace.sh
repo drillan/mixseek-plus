@@ -103,6 +103,8 @@ main() {
                 fi
             fi
         done
+    else
+        print_warning "Presets directory not found: $SCRIPT_DIR/../assets/presets"
     fi
 
     echo ""
