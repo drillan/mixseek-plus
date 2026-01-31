@@ -33,11 +33,11 @@ from mixseek_plus import __version__  # noqa: E402
 app = core_app
 
 
-def version_callback(value: bool) -> None:
+def version_callback(value: bool | None) -> None:
     """Display mixseek-plus version information."""
     if value:
         typer.echo(f"mixseek-plus version {__version__}")
-        raise typer.Exit()
+        raise typer.Exit(code=0)
 
 
 @app.callback()
