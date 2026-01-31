@@ -1,5 +1,12 @@
 """mixseek-plus: mixseek-coreの拡張パッケージ."""
 
+from importlib.metadata import PackageNotFoundError, version
+
+try:
+    __version__ = version("mixseek-plus")
+except PackageNotFoundError:
+    __version__ = "0.0.0.dev0"
+
 from mixseek_plus.agents import (
     ClaudeCodePlainAgent,
     ClaudeCodeTavilySearchAgent,
