@@ -3,6 +3,7 @@ name = "mixseek-plus"
 version = "0.0.4"
 description = "Add your description here"
 readme = "README.md"
+license = { text = "Apache-2.0" }
 authors = [
     { name = "driller", email = "eleshis@gmail.com" }
 ]
@@ -50,7 +51,6 @@ docs = [
 ]
 
 [tool.uv.sources]
-mixseek-core = { git = "https://github.com/mixseek/mixseek-core.git" }
 claudecode-model = { git = "https://github.com/drillan/claudecode-model.git" }
 
 [tool.mypy]
