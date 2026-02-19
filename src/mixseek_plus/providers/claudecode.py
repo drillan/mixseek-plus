@@ -8,6 +8,14 @@ from pydantic_ai.models import Model, ModelRequestParameters
 from pydantic_ai.settings import ModelSettings
 from pydantic_ai.usage import RequestUsage
 
+# ClaudeCode CLIセッションのデフォルトタイムアウト（秒）.
+# mixseek-coreのLeaderAgentConfig.timeout_seconds（default=300, le=600）は
+# HTTP APIリクエスト用に設計されている。ClaudeCode CLIセッションでは
+# ツール呼び出しやメンバーエージェント実行を含む全体の時間が必要なため、
+# より長いタイムアウトを設定する。
+# オーケストレータのtimeout_per_team_secondsが上位のセーフティネットとして機能する。
+CLAUDECODE_SESSION_TIMEOUT_SECONDS = 3600
+
 
 class FixedTokenClaudeCodeModel(ClaudeCodeModel):
     """トークン計算を補正したClaudeCodeModel.
@@ -18,6 +26,9 @@ class FixedTokenClaudeCodeModel(ClaudeCodeModel):
 
     このクラスはinput_tokensを全トークンの合計に補正し、
     genai_pricesのコスト計算でエラーが発生しないようにする。
+
+    また、model_settingsからtimeoutを除去し、コンストラクタで設定した
+    CLIセッション用タイムアウト（self._timeout）を常に使用する。
     """
 
     async def request(
@@ -28,6 +39,9 @@ class FixedTokenClaudeCodeModel(ClaudeCodeModel):
     ) -> ModelResponse:
         """リクエストを実行し、トークン使用量を補正.
 
+        model_settingsからtimeoutを除去し、コンストラクタで設定した
+        CLIセッション用タイムアウトを使用する。
+
         Args:
             messages: モデルに送信するメッセージリスト
             model_settings: モデル設定
@@ -36,10 +50,32 @@ class FixedTokenClaudeCodeModel(ClaudeCodeModel):
         Returns:
             トークン使用量が補正されたModelResponse
         """
+        effective_settings = self._strip_timeout_from_settings(model_settings)
         response = await super().request(
-            messages, model_settings, model_request_parameters
+            messages, effective_settings, model_request_parameters
         )
         return self._fix_token_usage(response)
+
+    @staticmethod
+    def _strip_timeout_from_settings(
+        model_settings: ModelSettings | None,
+    ) -> ModelSettings | None:
+        """model_settingsからtimeoutキーを除去する.
+
+        LeaderAgentConfig.timeout_seconds（default=300）はHTTP APIタイムアウト用
+        に設計されている。ClaudeCode CLIセッションではコンストラクタで設定した
+        より長いタイムアウト（self._timeout）を使用するため、model_settingsの
+        timeoutを除去する。
+
+        Args:
+            model_settings: 元のモデル設定
+
+        Returns:
+            timeoutを除去したモデル設定（元にtimeoutがなければそのまま返す）
+        """
+        if model_settings is None or "timeout" not in model_settings:
+            return model_settings
+        return {k: v for k, v in model_settings.items() if k != "timeout"}  # type: ignore[return-value]
 
     def _fix_token_usage(self, response: ModelResponse) -> ModelResponse:
         """input_tokensを全入力トークンの合計に補正.
@@ -100,6 +136,8 @@ class ClaudeCodeToolSettings(TypedDict, total=False):
         permission_mode: Permission mode (e.g., "bypassPermissions").
         working_directory: Working directory path.
         max_turns: Maximum number of turns.
+        timeout_seconds: CLIセッションのタイムアウト（秒）.
+                         未指定時はCLAUDECODE_SESSION_TIMEOUT_SECONDSを使用。
     """
 
     preset: str
@@ -108,6 +146,7 @@ class ClaudeCodeToolSettings(TypedDict, total=False):
     permission_mode: str
     working_directory: str
     max_turns: int
+    timeout_seconds: int
 
 
 def create_claudecode_model(
@@ -132,11 +171,19 @@ def create_claudecode_model(
         FixedTokenClaudeCodeModelはトークン使用量の計算を補正し、
         genai_pricesのコスト計算でエラーが発生しないようにする。
     """
+    timeout = CLAUDECODE_SESSION_TIMEOUT_SECONDS
+    if tool_settings is not None and "timeout_seconds" in tool_settings:
+        timeout = tool_settings["timeout_seconds"]
+
     if tool_settings is None:
-        return FixedTokenClaudeCodeModel(model_name=model_name)
+        return FixedTokenClaudeCodeModel(
+            model_name=model_name,
+            timeout=timeout,
+        )
 
     return FixedTokenClaudeCodeModel(
         model_name=model_name,
+        timeout=timeout,
         allowed_tools=tool_settings.get("allowed_tools"),
         disallowed_tools=tool_settings.get("disallowed_tools"),
         permission_mode=tool_settings.get("permission_mode"),
