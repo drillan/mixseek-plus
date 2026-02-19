@@ -225,6 +225,7 @@ allowed_tools = ["Read", "Glob", "Grep"]
 | `permission_mode` | `str` | パーミッションモード（`"bypassPermissions"` で確認スキップ） |
 | `working_directory` | `str` | 作業ディレクトリ |
 | `max_turns` | `int` | 最大ターン数 |
+| `timeout_seconds` | `int` | CLIセッションのタイムアウト秒数（デフォルト: 3600） |
 
 **設定例:**
 
