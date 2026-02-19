@@ -9,9 +9,12 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from claudecode_model import ClaudeCodeModel
 from pydantic_ai.messages import ModelResponse, TextPart
+from pydantic_ai.settings import ModelSettings
 from pydantic_ai.usage import RequestUsage
 
 from mixseek_plus.providers.claudecode import (
+    CLAUDECODE_SESSION_TIMEOUT_SECONDS,
+    ClaudeCodeToolSettings,
     FixedTokenClaudeCodeModel,
     create_claudecode_model,
 )
@@ -62,7 +65,10 @@ class TestCreateClaudeCodeModel:
         ) as mock_model_class:
             create_claudecode_model("claude-sonnet-4-5")
 
-            mock_model_class.assert_called_once_with(model_name="claude-sonnet-4-5")
+            mock_model_class.assert_called_once_with(
+                model_name="claude-sonnet-4-5",
+                timeout=CLAUDECODE_SESSION_TIMEOUT_SECONDS,
+            )
 
     def test_create_claudecode_model_returns_fixed_token_model(self) -> None:
         """create_claudecode_modelがFixedTokenClaudeCodeModelを返すことを確認."""
@@ -250,3 +256,145 @@ class TestFixedTokenClaudeCodeModel:
         )
         assert uncached == 3
         assert uncached >= 0
+
+
+class TestClaudeCodeSessionTimeout:
+    """ClaudeCode SDKクエリのタイムアウト設定テスト.
+
+    LeaderAgentConfig.timeout_seconds (default=300) はHTTP APIタイムアウト用に
+    設計されている。ClaudeCode CLIセッションではツール呼び出しやメンバーエージェント
+    実行を含む全体の時間が必要なため、model_settingsのtimeoutを無視し、
+    コンストラクタで設定したより長いタイムアウトを使用する。
+    """
+
+    def test_default_session_timeout_is_3600(self) -> None:
+        """デフォルトのセッションタイムアウトが3600秒であることを確認."""
+        assert CLAUDECODE_SESSION_TIMEOUT_SECONDS == 3600
+
+    def test_create_claudecode_model_uses_default_timeout(self) -> None:
+        """create_claudecode_modelがデフォルトタイムアウトをコンストラクタに渡す."""
+        model = create_claudecode_model("claude-sonnet-4-5")
+        assert isinstance(model, FixedTokenClaudeCodeModel)
+        assert model._timeout == CLAUDECODE_SESSION_TIMEOUT_SECONDS
+
+    def test_create_claudecode_model_with_custom_timeout(self) -> None:
+        """tool_settings.timeout_secondsでカスタムタイムアウトを設定できる."""
+        tool_settings: ClaudeCodeToolSettings = {"timeout_seconds": 7200}
+        model = create_claudecode_model(
+            "claude-sonnet-4-5", tool_settings=tool_settings
+        )
+        assert isinstance(model, FixedTokenClaudeCodeModel)
+        assert model._timeout == 7200
+
+    def test_create_claudecode_model_with_tool_settings_no_timeout(self) -> None:
+        """tool_settingsにtimeout_secondsがない場合はデフォルトを使用."""
+        tool_settings: ClaudeCodeToolSettings = {"permission_mode": "bypassPermissions"}
+        model = create_claudecode_model(
+            "claude-sonnet-4-5", tool_settings=tool_settings
+        )
+        assert isinstance(model, FixedTokenClaudeCodeModel)
+        assert model._timeout == CLAUDECODE_SESSION_TIMEOUT_SECONDS
+
+    @pytest.mark.asyncio
+    async def test_request_strips_model_settings_timeout(self) -> None:
+        """request()がmodel_settingsからtimeoutを除去することを確認.
+
+        LeaderAgentConfigがmodel_settings["timeout"]=300を設定するが、
+        ClaudeCode CLIセッションではコンストラクタのタイムアウトを使用すべき。
+        """
+        model = FixedTokenClaudeCodeModel(
+            model_name="claude-sonnet-4-5", timeout=3600.0
+        )
+
+        model_settings: ModelSettings = {"timeout": 300}
+
+        original_response = ModelResponse(
+            parts=[TextPart(content="test")],
+            usage=RequestUsage(input_tokens=10, output_tokens=20),
+            model_name="claude-sonnet-4-5",
+            timestamp=datetime.now(tz=timezone.utc),
+        )
+
+        with patch.object(
+            ClaudeCodeModel, "request", new_callable=AsyncMock
+        ) as mock_request:
+            mock_request.return_value = original_response
+            await model.request([], model_settings, None)  # type: ignore[arg-type]
+
+            actual_settings = mock_request.call_args[0][1]
+            assert "timeout" not in actual_settings
+
+    @pytest.mark.asyncio
+    async def test_request_preserves_other_model_settings(self) -> None:
+        """request()がtimeout以外のmodel_settingsを保持することを確認."""
+        model = FixedTokenClaudeCodeModel(
+            model_name="claude-sonnet-4-5", timeout=3600.0
+        )
+
+        model_settings: ModelSettings = {"timeout": 300, "temperature": 0.5}
+
+        original_response = ModelResponse(
+            parts=[TextPart(content="test")],
+            usage=RequestUsage(input_tokens=10, output_tokens=20),
+            model_name="claude-sonnet-4-5",
+            timestamp=datetime.now(tz=timezone.utc),
+        )
+
+        with patch.object(
+            ClaudeCodeModel, "request", new_callable=AsyncMock
+        ) as mock_request:
+            mock_request.return_value = original_response
+            await model.request([], model_settings, None)  # type: ignore[arg-type]
+
+            actual_settings = mock_request.call_args[0][1]
+            assert "timeout" not in actual_settings
+            assert actual_settings["temperature"] == 0.5
+
+    @pytest.mark.asyncio
+    async def test_request_handles_none_model_settings(self) -> None:
+        """model_settingsがNoneの場合も正常に動作することを確認."""
+        model = FixedTokenClaudeCodeModel(
+            model_name="claude-sonnet-4-5", timeout=3600.0
+        )
+
+        original_response = ModelResponse(
+            parts=[TextPart(content="test")],
+            usage=RequestUsage(input_tokens=10, output_tokens=20),
+            model_name="claude-sonnet-4-5",
+            timestamp=datetime.now(tz=timezone.utc),
+        )
+
+        with patch.object(
+            ClaudeCodeModel, "request", new_callable=AsyncMock
+        ) as mock_request:
+            mock_request.return_value = original_response
+            await model.request([], None, None)  # type: ignore[arg-type]
+
+            actual_settings = mock_request.call_args[0][1]
+            assert actual_settings is None
+
+    @pytest.mark.asyncio
+    async def test_request_handles_settings_without_timeout(self) -> None:
+        """model_settingsにtimeoutがない場合はそのまま渡すことを確認."""
+        model = FixedTokenClaudeCodeModel(
+            model_name="claude-sonnet-4-5", timeout=3600.0
+        )
+
+        model_settings: ModelSettings = {"temperature": 0.0}
+
+        original_response = ModelResponse(
+            parts=[TextPart(content="test")],
+            usage=RequestUsage(input_tokens=10, output_tokens=20),
+            model_name="claude-sonnet-4-5",
+            timestamp=datetime.now(tz=timezone.utc),
+        )
+
+        with patch.object(
+            ClaudeCodeModel, "request", new_callable=AsyncMock
+        ) as mock_request:
+            mock_request.return_value = original_response
+            await model.request([], model_settings, None)  # type: ignore[arg-type]
+
+            actual_settings = mock_request.call_args[0][1]
+            assert actual_settings is model_settings
+            assert actual_settings["temperature"] == 0.0
