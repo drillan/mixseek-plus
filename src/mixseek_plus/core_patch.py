@@ -604,33 +604,35 @@ def _patch_member_agent_config_validator() -> None:
     specify their own type like 'playwright_markdown_fetch'.
 
     Called internally by patch_core().
+
+    Note:
+        Pydantic v2 compiles field validators at class definition time into
+        __pydantic_validator__. Simply replacing the classmethod attribute does
+        NOT affect the compiled validator. To properly patch, we must:
+        1. Replace the func reference in __pydantic_decorators__
+        2. Call model_rebuild(force=True) to recompile the validator
     """
     from pydantic import ValidationInfo
 
     from mixseek.models.member_agent import MemberAgentConfig
 
-    # Store the original validator
-    # Note: Pydantic field validators are compiled at class definition,
-    # so this patch may not work as expected. Using type: ignore for
-    # internal Pydantic API access.
-    original_validator = MemberAgentConfig.validate_model.__func__  # type: ignore[attr-defined]
+    # Access the Pydantic decorator that holds the validator reference
+    dec = MemberAgentConfig.__pydantic_decorators__.field_validators["validate_model"]
+    original_func = dec.func
 
-    @classmethod  # type: ignore[misc]
-    def patched_validate_model(
-        cls: type[MemberAgentConfig], v: str, info: ValidationInfo
-    ) -> str:
+    def patched_validate_model(v: str, info: ValidationInfo) -> str:
         """Extended validate_model that accepts groq: and claudecode: prefixes."""
-        # Accept groq: and claudecode: prefixes
-        if v.startswith(GROQ_PROVIDER_PREFIX) or v.startswith(
-            CLAUDECODE_PROVIDER_PREFIX
-        ):
+        if v.startswith((GROQ_PROVIDER_PREFIX, CLAUDECODE_PROVIDER_PREFIX)):
             return v
 
-        # Fall back to original validator for other cases
-        return original_validator(cls, v, info)  # type: ignore[no-any-return]
+        # Delegate to original validator for standard prefixes
+        return original_func(v, info)  # type: ignore[no-any-return]
 
-    # Replace the validator method
-    MemberAgentConfig.validate_model = patched_validate_model  # type: ignore[assignment]
+    # Replace the decorator's func reference and recompile
+    dec.func = patched_validate_model
+
+    # Rebuild the Pydantic model to recompile validators with the patched function
+    MemberAgentConfig.model_rebuild(force=True)
 
 
 def _patch_aggregation_store() -> None:

@@ -224,3 +224,8 @@ __marimo__/
 
 # mixseek workspaces
 /workspaces/
+# hachimoku
+/.hachimoku/
+
+# issue-workflow
+/.issue-workflow/

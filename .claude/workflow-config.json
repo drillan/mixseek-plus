@@ -16,8 +16,7 @@
   "documentation": {
     "paths": [
       "README.md",
-      "docs/",
-      "specs/"
+      "docs/"
     ],
     "changelog": "CHANGELOG.md",
     "ddd": {
