@@ -21,41 +21,33 @@ class TestMemberAgentConfigValidatorPatch:
     and calls model_rebuild(force=True) to recompile.
     """
 
-    def test_claudecode_model_accepted(self) -> None:
-        """claudecode: prefix should be accepted after patch_core()."""
-        config = MemberAgentConfig(
-            name="test-agent",
-            type="claudecode_plain",
-            model="claudecode:claude-opus-4-6",
-        )
-        assert config.model == "claudecode:claude-opus-4-6"
-
-    def test_groq_model_accepted(self) -> None:
-        """groq: prefix should be accepted after patch_core()."""
-        config = MemberAgentConfig(
-            name="test-agent",
-            type="groq_plain",
-            model="groq:llama-3.3-70b-versatile",
-        )
-        assert config.model == "groq:llama-3.3-70b-versatile"
-
-    def test_google_gla_model_still_accepted(self) -> None:
-        """google-gla: prefix should still work (existing behavior preserved)."""
-        config = MemberAgentConfig(
-            name="test-agent",
-            type="custom",
-            model="google-gla:gemini-2.5-flash",
-        )
-        assert config.model == "google-gla:gemini-2.5-flash"
-
-    def test_openai_model_still_accepted(self) -> None:
-        """openai: prefix should still work (existing behavior preserved)."""
-        config = MemberAgentConfig(
-            name="test-agent",
-            type="custom",
-            model="openai:gpt-4o",
-        )
-        assert config.model == "openai:gpt-4o"
+    @pytest.mark.parametrize(
+        ("name", "agent_type", "model"),
+        [
+            ("test-agent", "claudecode_plain", "claudecode:claude-opus-4-6"),
+            ("test-agent", "groq_plain", "groq:llama-3.3-70b-versatile"),
+            ("test-agent", "custom", "google-gla:gemini-2.5-flash"),
+            ("test-agent", "custom", "openai:gpt-4o"),
+            (
+                "browser-agent",
+                "playwright_markdown_fetch",
+                "claudecode:claude-sonnet-4-5",
+            ),
+            ("search-agent", "groq_web_search", "groq:llama-3.3-70b-versatile"),
+        ],
+        ids=[
+            "claudecode-prefix",
+            "groq-prefix",
+            "google-gla-prefix-preserved",
+            "openai-prefix-preserved",
+            "claudecode-with-playwright-type",
+            "groq-with-web-search-type",
+        ],
+    )
+    def test_valid_model_accepted(self, name: str, agent_type: str, model: str) -> None:
+        """Valid model prefixes should be accepted after patch_core()."""
+        config = MemberAgentConfig(name=name, type=agent_type, model=model)
+        assert config.model == model
 
     def test_invalid_model_rejected(self) -> None:
         """Invalid model prefix should still be rejected."""
@@ -65,21 +57,3 @@ class TestMemberAgentConfigValidatorPatch:
                 type="plain",
                 model="invalid-model",
             )
-
-    def test_claudecode_with_playwright_agent_type(self) -> None:
-        """claudecode: model with playwright_markdown_fetch type should work."""
-        config = MemberAgentConfig(
-            name="browser-agent",
-            type="playwright_markdown_fetch",
-            model="claudecode:claude-sonnet-4-5",
-        )
-        assert config.model == "claudecode:claude-sonnet-4-5"
-
-    def test_groq_with_web_search_agent_type(self) -> None:
-        """groq: model with groq_web_search type should work."""
-        config = MemberAgentConfig(
-            name="search-agent",
-            type="groq_web_search",
-            model="groq:llama-3.3-70b-versatile",
-        )
-        assert config.model == "groq:llama-3.3-70b-versatile"

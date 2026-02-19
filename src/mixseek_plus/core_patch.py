@@ -620,23 +620,16 @@ def _patch_member_agent_config_validator() -> None:
     dec = MemberAgentConfig.__pydantic_decorators__.field_validators["validate_model"]
     original_func = dec.func
 
-    @classmethod  # type: ignore[misc]
-    def patched_validate_model(
-        cls: type[MemberAgentConfig], v: str, info: ValidationInfo
-    ) -> str:
+    def patched_validate_model(v: str, info: ValidationInfo) -> str:
         """Extended validate_model that accepts groq: and claudecode: prefixes."""
-        # Accept groq: and claudecode: prefixes
-        if v.startswith(GROQ_PROVIDER_PREFIX) or v.startswith(
-            CLAUDECODE_PROVIDER_PREFIX
-        ):
+        if v.startswith((GROQ_PROVIDER_PREFIX, CLAUDECODE_PROVIDER_PREFIX)):
             return v
 
-        # Fall back to original validator for other cases
+        # Delegate to original validator for standard prefixes
         return original_func(v, info)  # type: ignore[no-any-return]
 
-    # Replace both the classmethod and the decorator's func reference
-    MemberAgentConfig.validate_model = patched_validate_model  # type: ignore[assignment]
-    dec.func = patched_validate_model.__func__.__get__(MemberAgentConfig)  # type: ignore[attr-defined]
+    # Replace the decorator's func reference and recompile
+    dec.func = patched_validate_model
 
     # Rebuild the Pydantic model to recompile validators with the patched function
     MemberAgentConfig.model_rebuild(force=True)
