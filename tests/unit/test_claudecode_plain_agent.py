@@ -420,4 +420,11 @@ class TestCreateClaudeCodeModelWithToolSettings:
             mock_model.return_value = MagicMock()
             create_claudecode_model("claude-sonnet-4-5")
 
-            mock_model.assert_called_once_with(model_name="claude-sonnet-4-5")
+            from mixseek_plus.providers.claudecode import (
+                CLAUDECODE_SESSION_TIMEOUT_SECONDS,
+            )
+
+            mock_model.assert_called_once_with(
+                model_name="claude-sonnet-4-5",
+                timeout=CLAUDECODE_SESSION_TIMEOUT_SECONDS,
+            )

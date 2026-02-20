@@ -924,7 +924,7 @@ def _patch_leader_agent() -> None:
                     len(mcp_tools),
                     tool_names,
                 )
-                model.set_agent_toolsets(mcp_tools)  # type: ignore[arg-type]
+                model.set_agent_toolsets(mcp_tools, server_name="team")  # type: ignore[arg-type]
 
                 logger.debug(
                     "Applied set_agent_toolsets with %d tools for team %s",

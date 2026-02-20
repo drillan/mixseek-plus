@@ -880,6 +880,9 @@ class TestLeaderAgentPatch:
             # Verify the correct number of wrapped tools were passed
             assert len(actual_tools) == 2
 
+            # Verify server_name="team" was passed (Issue #54)
+            assert call_args[1]["server_name"] == "team"
+
             # The returned agent should be the mock_leader_agent (with patched run method)
             assert result.model == mock_leader_agent.model
 
