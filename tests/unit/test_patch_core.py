@@ -19,6 +19,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from claudecode_model import ClaudeCodeModel
 
+from mixseek_plus.core_patch import LEADER_AGENT_SERVER_NAME
 from mixseek_plus.providers.claudecode import FixedTokenClaudeCodeModel
 
 
@@ -880,8 +881,8 @@ class TestLeaderAgentPatch:
             # Verify the correct number of wrapped tools were passed
             assert len(actual_tools) == 2
 
-            # Verify server_name="team" was passed (Issue #54)
-            assert call_args[1]["server_name"] == "team"
+            # Verify server_name was passed using the defined constant (Issue #54)
+            assert call_args[1]["server_name"] == LEADER_AGENT_SERVER_NAME
 
             # The returned agent should be the mock_leader_agent (with patched run method)
             assert result.model == mock_leader_agent.model

@@ -44,6 +44,15 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+LEADER_AGENT_SERVER_NAME = "team"
+"""MCP server name used for leader agent toolsets.
+
+This identifies the MCP tool namespace when registering member agent tools
+with the leader agent's ClaudeCode model via set_agent_toolsets().
+Distinct from claudecode_model's MCP_SERVER_NAME which is used for
+member agent tool registration.
+"""
+
 
 def enable_verbose_mode() -> None:
     """Enable verbose mode by setting MIXSEEK_VERBOSE environment variable.
@@ -924,7 +933,10 @@ def _patch_leader_agent() -> None:
                     len(mcp_tools),
                     tool_names,
                 )
-                model.set_agent_toolsets(mcp_tools, server_name="team")  # type: ignore[arg-type]
+                model.set_agent_toolsets(
+                    mcp_tools,  # type: ignore[arg-type]
+                    server_name=LEADER_AGENT_SERVER_NAME,
+                )
 
                 logger.debug(
                     "Applied set_agent_toolsets with %d tools for team %s",
