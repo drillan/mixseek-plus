@@ -259,8 +259,12 @@ class TestClaudeCodeToolSettingsSupport:
         result = get_claudecode_tool_settings()
         assert result is None
 
-    def test_patched_create_model_uses_tool_settings(self) -> None:
-        """CC-061: After patch, claudecode: should use configured tool_settings."""
+    def test_patched_create_model_uses_tool_settings_via_leader_module(self) -> None:
+        """CC-061: After patch, Leader module's claudecode: should use configured tool_settings.
+
+        Note: Since Issue #56 fix, tool_settings are only applied through
+        Leader/Evaluator/Judgment module references, not via auth module.
+        """
         from mixseek_plus import core_patch
         from mixseek_plus.core_patch import (
             configure_claudecode_tool_settings,
@@ -282,8 +286,8 @@ class TestClaudeCodeToolSettingsSupport:
         # Apply patch
         patch_core()
 
-        # Import after patching
-        from mixseek.core.auth import create_authenticated_model
+        # Import from leader module (tool_settings are applied here)
+        import mixseek.agents.leader.agent as leader_module
 
         # Mock FixedTokenClaudeCodeModel to capture initialization args
         with patch(
@@ -292,9 +296,9 @@ class TestClaudeCodeToolSettingsSupport:
             mock_model.return_value = FixedTokenClaudeCodeModel(
                 model_name="claude-sonnet-4-5"
             )
-            create_authenticated_model("claudecode:claude-sonnet-4-5")
+            leader_module.create_authenticated_model("claudecode:claude-sonnet-4-5")  # type: ignore[attr-defined]
 
-            # Verify tool_settings were passed
+            # Verify tool_settings were passed via leader module
             mock_model.assert_called_once()
             call_kwargs = mock_model.call_args.kwargs
             assert call_kwargs.get("permission_mode") == "bypassPermissions"
@@ -1505,3 +1509,229 @@ class TestPatchedRunContextVar:
             assert _current_deps.get() is None
 
         reset_leader_agent_patch()
+
+
+class TestToolSettingsIsolation:
+    """Tests for Issue #56: delegate_only preset should NOT leak to member agents.
+
+    These tests verify that _CLAUDECODE_TOOL_SETTINGS (set by Leader's
+    tool_settings.claudecode) is only applied to Leader/Evaluator/Judgment
+    modules, not to general callers (including member agent creation paths).
+    """
+
+    def test_auth_module_does_not_apply_leader_tool_settings(self) -> None:
+        """ISS-056-001: auth.create_authenticated_model should NOT apply leader settings.
+
+        When member agents (e.g., PlainMemberAgent) call create_authenticated_model
+        via the auth module, they should NOT receive Leader's tool_settings.
+        """
+        from mixseek_plus import core_patch
+        from mixseek_plus.core_patch import (
+            configure_claudecode_tool_settings,
+            patch_core,
+        )
+
+        # Reset patch state
+        core_patch._PATCH_APPLIED = False
+        core_patch._CLAUDECODE_TOOL_SETTINGS = None
+
+        # Configure leader's tool_settings (simulating delegate_only preset)
+        configure_claudecode_tool_settings(
+            {
+                "disallowed_tools": ["Bash", "Write", "Edit", "Read", "Glob", "Grep"],
+                "permission_mode": "bypassPermissions",
+            }
+        )
+
+        # Apply patch
+        patch_core()
+
+        # Import from auth module (general reference used by member agents)
+        from mixseek.core.auth import create_authenticated_model
+
+        # Mock to capture initialization args
+        with patch(
+            "mixseek_plus.providers.claudecode.FixedTokenClaudeCodeModel"
+        ) as mock_model:
+            mock_model.return_value = FixedTokenClaudeCodeModel(
+                model_name="claude-sonnet-4-5"
+            )
+            create_authenticated_model("claudecode:claude-sonnet-4-5")
+
+            # Verify leader's tool_settings were NOT passed
+            mock_model.assert_called_once()
+            call_kwargs = mock_model.call_args.kwargs
+            assert call_kwargs.get("disallowed_tools") is None
+            assert call_kwargs.get("permission_mode") is None
+
+    def test_leader_module_applies_tool_settings(self) -> None:
+        """ISS-056-002: Leader module's create_authenticated_model SHOULD apply settings.
+
+        Leader/Evaluator/Judgment modules should receive the configured
+        tool_settings when creating ClaudeCode models.
+        """
+        from mixseek_plus import core_patch
+        from mixseek_plus.core_patch import (
+            configure_claudecode_tool_settings,
+            patch_core,
+        )
+
+        # Reset patch state
+        core_patch._PATCH_APPLIED = False
+        core_patch._CLAUDECODE_TOOL_SETTINGS = None
+
+        # Configure leader's tool_settings
+        configure_claudecode_tool_settings(
+            {
+                "disallowed_tools": ["Bash", "Write", "Edit"],
+                "permission_mode": "bypassPermissions",
+            }
+        )
+
+        # Apply patch
+        patch_core()
+
+        # Import from leader module (specific reference)
+        import mixseek.agents.leader.agent as leader_module
+
+        # Mock to capture initialization args
+        with patch(
+            "mixseek_plus.providers.claudecode.FixedTokenClaudeCodeModel"
+        ) as mock_model:
+            mock_model.return_value = FixedTokenClaudeCodeModel(
+                model_name="claude-sonnet-4-5"
+            )
+            leader_module.create_authenticated_model("claudecode:claude-sonnet-4-5")  # type: ignore[attr-defined]
+
+            # Verify leader's tool_settings WERE passed
+            mock_model.assert_called_once()
+            call_kwargs = mock_model.call_args.kwargs
+            assert call_kwargs.get("disallowed_tools") == ["Bash", "Write", "Edit"]
+            assert call_kwargs.get("permission_mode") == "bypassPermissions"
+
+    def test_evaluator_module_applies_tool_settings(self) -> None:
+        """ISS-056-003: Evaluator module's create_authenticated_model SHOULD apply settings."""
+        from mixseek_plus import core_patch
+        from mixseek_plus.core_patch import (
+            configure_claudecode_tool_settings,
+            patch_core,
+        )
+
+        # Reset patch state
+        core_patch._PATCH_APPLIED = False
+        core_patch._CLAUDECODE_TOOL_SETTINGS = None
+
+        # Configure leader's tool_settings
+        configure_claudecode_tool_settings(
+            {
+                "disallowed_tools": ["Bash", "Write", "Edit"],
+                "permission_mode": "bypassPermissions",
+            }
+        )
+
+        # Apply patch
+        patch_core()
+
+        # Import from evaluator module (specific reference)
+        import mixseek.evaluator.llm_client as evaluator_module
+
+        # Mock to capture initialization args
+        with patch(
+            "mixseek_plus.providers.claudecode.FixedTokenClaudeCodeModel"
+        ) as mock_model:
+            mock_model.return_value = FixedTokenClaudeCodeModel(
+                model_name="claude-sonnet-4-5"
+            )
+            evaluator_module.create_authenticated_model("claudecode:claude-sonnet-4-5")  # type: ignore[attr-defined]
+
+            # Verify tool_settings WERE passed
+            mock_model.assert_called_once()
+            call_kwargs = mock_model.call_args.kwargs
+            assert call_kwargs.get("disallowed_tools") == ["Bash", "Write", "Edit"]
+            assert call_kwargs.get("permission_mode") == "bypassPermissions"
+
+    def test_judgment_module_applies_tool_settings(self) -> None:
+        """ISS-056-004: Judgment module's create_authenticated_model SHOULD apply settings."""
+        from mixseek_plus import core_patch
+        from mixseek_plus.core_patch import (
+            configure_claudecode_tool_settings,
+            patch_core,
+        )
+
+        # Reset patch state
+        core_patch._PATCH_APPLIED = False
+        core_patch._CLAUDECODE_TOOL_SETTINGS = None
+
+        # Configure leader's tool_settings
+        configure_claudecode_tool_settings(
+            {
+                "disallowed_tools": ["Bash", "Write", "Edit"],
+                "permission_mode": "bypassPermissions",
+            }
+        )
+
+        # Apply patch
+        patch_core()
+
+        # Import from judgment module (specific reference)
+        import mixseek.round_controller.judgment_client as judgment_module
+
+        # Mock to capture initialization args
+        with patch(
+            "mixseek_plus.providers.claudecode.FixedTokenClaudeCodeModel"
+        ) as mock_model:
+            mock_model.return_value = FixedTokenClaudeCodeModel(
+                model_name="claude-sonnet-4-5"
+            )
+            judgment_module.create_authenticated_model("claudecode:claude-sonnet-4-5")  # type: ignore[attr-defined]
+
+            # Verify tool_settings WERE passed
+            mock_model.assert_called_once()
+            call_kwargs = mock_model.call_args.kwargs
+            assert call_kwargs.get("disallowed_tools") == ["Bash", "Write", "Edit"]
+            assert call_kwargs.get("permission_mode") == "bypassPermissions"
+
+    def test_auth_module_still_supports_groq_after_isolation(
+        self, mock_groq_api_key: str
+    ) -> None:
+        """ISS-056-005: Groq models should still work via auth module."""
+        from mixseek_plus import core_patch
+        from mixseek_plus.core_patch import (
+            configure_claudecode_tool_settings,
+            patch_core,
+        )
+
+        # Reset patch state
+        core_patch._PATCH_APPLIED = False
+        core_patch._CLAUDECODE_TOOL_SETTINGS = None
+
+        # Configure leader settings
+        configure_claudecode_tool_settings(
+            {"disallowed_tools": ["Bash"], "permission_mode": "bypassPermissions"}
+        )
+
+        patch_core()
+
+        from mixseek.core.auth import create_authenticated_model
+        from pydantic_ai.models.groq import GroqModel
+
+        # Groq should still work regardless of tool_settings isolation
+        model = create_authenticated_model("groq:llama-3.3-70b-versatile")
+        assert isinstance(model, GroqModel)
+
+    def test_auth_module_claudecode_without_settings_still_works(self) -> None:
+        """ISS-056-006: ClaudeCode via auth module works when no settings configured."""
+        from mixseek_plus import core_patch
+        from mixseek_plus.core_patch import patch_core
+
+        # Reset patch state - NO tool_settings configured
+        core_patch._PATCH_APPLIED = False
+        core_patch._CLAUDECODE_TOOL_SETTINGS = None
+
+        patch_core()
+
+        from mixseek.core.auth import create_authenticated_model
+
+        # Should work without any settings
+        model = create_authenticated_model("claudecode:claude-sonnet-4-5")
+        assert isinstance(model, ClaudeCodeModel)
