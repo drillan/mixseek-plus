@@ -514,6 +514,10 @@ def patch_core() -> None:
     def patched_create_authenticated_model(model_id: str) -> Model:
         """Extended create_authenticated_model with Groq and ClaudeCode support.
 
+        This is the default version used by the auth module. It does NOT
+        apply _CLAUDECODE_TOOL_SETTINGS to ClaudeCode models, preventing
+        Leader's tool_settings from leaking to Member agents (Issue #56).
+
         Args:
             model_id: Model identifier with provider prefix
                      (e.g., "groq:llama-3.3-70b-versatile",
@@ -528,24 +532,43 @@ def patch_core() -> None:
         """
         if model_id.startswith(CLAUDECODE_PROVIDER_PREFIX):
             model_name = model_id[len(CLAUDECODE_PROVIDER_PREFIX) :]
-            # Use globally configured tool_settings if available
-            return create_claudecode_model(
-                model_name, tool_settings=_CLAUDECODE_TOOL_SETTINGS
-            )
+            return create_claudecode_model(model_name)
         if model_id.startswith(GROQ_PROVIDER_PREFIX):
             model_name = model_id[len(GROQ_PROVIDER_PREFIX) :]
             return create_groq_model(model_name)
         # Use the captured original function, not the module reference
         return original_func(model_id)
 
-    # Apply the patch to the auth module
+    def patched_create_authenticated_model_for_leaders(model_id: str) -> Model:
+        """Extended create_authenticated_model for Leader/Evaluator/Judgment.
+
+        This version applies _CLAUDECODE_TOOL_SETTINGS for ClaudeCode models.
+        Only installed in Leader, Evaluator, and Judgment modules to ensure
+        tool_settings are scoped correctly (Issue #56).
+
+        Args:
+            model_id: Model identifier with provider prefix
+
+        Returns:
+            Model instance appropriate for the provider
+        """
+        if model_id.startswith(CLAUDECODE_PROVIDER_PREFIX):
+            model_name = model_id[len(CLAUDECODE_PROVIDER_PREFIX) :]
+            return create_claudecode_model(
+                model_name, tool_settings=_CLAUDECODE_TOOL_SETTINGS
+            )
+        # Delegate non-claudecode models to the base version
+        return patched_create_authenticated_model(model_id)
+
+    # Apply the base patch to the auth module (no leader tool_settings)
+    # This is the default for all callers including member agent creation
     # Note: Type ignore needed because auth module's type annotation is more specific
     auth.create_authenticated_model = patched_create_authenticated_model  # type: ignore[assignment]
 
-    # Also patch modules that have already imported the function directly
-    # These modules hold their own reference that won't be updated by
-    # patching auth.create_authenticated_model alone
-    _patch_module_references(patched_create_authenticated_model)
+    # Apply the leader-settings-aware version to Leader/Evaluator/Judgment modules
+    # These modules hold their own reference to create_authenticated_model
+    # and need tool_settings for ClaudeCode session configuration
+    _patch_module_references(patched_create_authenticated_model_for_leaders)
 
     # Patch ConfigurationManager.load_team_settings for auto leader.tool_settings
     _patch_configuration_manager()
@@ -575,20 +598,22 @@ def patch_core() -> None:
 
 
 def _patch_module_references(patched_func: Callable[[str], Model]) -> None:
-    """Patch all modules that have imported create_authenticated_model directly.
+    """Patch Leader/Evaluator/Judgment modules with settings-aware model factory.
 
-    mixseek-core has several modules that use:
-        from mixseek.core.auth import create_authenticated_model
+    These modules need _CLAUDECODE_TOOL_SETTINGS applied when creating
+    ClaudeCode models. Other callers (including member agent creation)
+    use the base version without tool_settings (Issue #56).
 
-    These create local references that aren't updated when we patch the
-    auth module. We need to explicitly update these references.
+    Modules are imported if not already loaded to ensure the patch is
+    applied regardless of import order.
 
     Args:
         patched_func: The patched create_authenticated_model function
+                     (leader-settings-aware version)
     """
-    import sys
+    import importlib
 
-    # List of modules known to import create_authenticated_model directly
+    # Leader/Evaluator/Judgment modules that need tool_settings
     modules_to_patch = [
         "mixseek.agents.leader.agent",
         "mixseek.round_controller.judgment_client",
@@ -596,10 +621,21 @@ def _patch_module_references(patched_func: Callable[[str], Model]) -> None:
     ]
 
     for module_name in modules_to_patch:
-        if module_name in sys.modules:
-            module = sys.modules[module_name]
+        try:
+            module = importlib.import_module(module_name)
             if hasattr(module, "create_authenticated_model"):
                 setattr(module, "create_authenticated_model", patched_func)
+                logger.debug(
+                    "Patched create_authenticated_model reference in %s "
+                    "(leader settings enabled)",
+                    module_name,
+                )
+        except ImportError as e:
+            logger.warning(
+                "Could not import %s for patching create_authenticated_model: %s",
+                module_name,
+                e,
+            )
 
 
 def _patch_member_agent_config_validator() -> None:

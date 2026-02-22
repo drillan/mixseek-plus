@@ -478,6 +478,8 @@ mixseek_plus.patch_core()
 
 Leader/Evaluator/JudgmentエージェントでClaudeCodeを使用する際に、`permission_mode`などのツール設定を適用するには、`configure_claudecode_tool_settings()`を使用します。
 
+この設定はLeader/Evaluator/Judgmentにのみ適用され、Memberエージェントには影響しません。Memberエージェントは自身のTOML設定（`[agent.tool_settings.claudecode]`）で個別に制御します。
+
 ```python
 import mixseek_plus
 
@@ -492,6 +494,7 @@ mixseek_plus.patch_core()
 
 # これでLeader/Evaluator/JudgmentがClaudeCodeの
 # Bash、Write等のツールを制限なく使用できる
+# Memberエージェントは影響を受けない
 ```
 
 **configure_claudecode_tool_settingsオプション:**

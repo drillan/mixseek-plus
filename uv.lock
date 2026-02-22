@@ -423,11 +423,12 @@ dependencies = [
 
 [[package]]
 name = "claudecode-model"
-version = "0.0.26"
-source = { git = "https://github.com/drillan/claudecode-model.git#a3e7f7d8b7c8fb49342192b885de6e017e844de8" }
+version = "0.0.27"
+source = { git = "https://github.com/drillan/claudecode-model.git#af5a1d5a90f9346ad28c6c311fef86aa858d25b6" }
 dependencies = [
     { name = "claude-agent-sdk" },
     { name = "dacite" },
+    { name = "mcp" },
     { name = "pydantic-ai" },
 ]
 

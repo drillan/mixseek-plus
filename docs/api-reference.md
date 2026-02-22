@@ -78,7 +78,7 @@ def configure_claudecode_tool_settings(settings: ClaudeCodeToolSettings) -> None
 
 Leader/Evaluator/JudgmentエージェントでClaudeCodeを使用する際のツール設定を登録します。
 
-`patch_core()` の前後どちらで呼び出しても有効です。設定は `patch_core()` によって作成されるClaudeCodeモデルに適用されます。
+`patch_core()` の前後どちらで呼び出しても有効です。設定はLeader/Evaluator/Judgmentモジュール経由で作成されるClaudeCodeモデルにのみ適用されます。Memberエージェントには適用されません（Memberは自身のTOML設定 `[agent.tool_settings.claudecode]` を使用します）。
 
 **引数**
 
