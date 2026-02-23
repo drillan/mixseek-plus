@@ -371,11 +371,15 @@ class TestClaudeCodeTavilySearchAgentToolsetRegistration:
         assert toolsets is not None
         assert len(toolsets) == 3  # 3 Tavily tools
 
-    def test_adds_mcp_tool_names_to_allowed_tools(
+    def test_preserves_allowed_tools_none_after_registration(
         self,
         mock_tavily_api_key: str,
     ) -> None:
-        """MCP tool names are added to model's allowed_tools."""
+        """allowed_tools=None（無制限）が MCP ツール登録後も維持されることを確認.
+
+        allowed_tools=None は全ツール利用可能を意味し、MCP ツールは
+        --mcp-config 経由で登録されるため allowed_tools への追加は不要 (Issue #58)。
+        """
         from mixseek_plus.agents.claudecode_tavily_search_agent import (
             ClaudeCodeTavilySearchAgent,
         )
@@ -389,20 +393,13 @@ class TestClaudeCodeTavilySearchAgentToolsetRegistration:
 
         agent = ClaudeCodeTavilySearchAgent(config)
 
-        # Verify allowed_tools was updated with MCP tool names
-        assert agent._model._allowed_tools is not None  # type: ignore[attr-defined]
-        assert len(agent._model._allowed_tools) >= 3  # type: ignore[attr-defined]
+        # allowed_tools は None のまま（標準ツールをブロックしない）
+        assert agent._model._allowed_tools is None  # type: ignore[attr-defined]
 
-        # Check MCP naming convention
-        mcp_tool_names = [
-            t
-            for t in agent._model._allowed_tools  # type: ignore[attr-defined]
-            if t.startswith("mcp__pydantic_tools__tavily_")
-        ]
-        assert len(mcp_tool_names) == 3
-        assert "mcp__pydantic_tools__tavily_search" in mcp_tool_names
-        assert "mcp__pydantic_tools__tavily_extract" in mcp_tool_names
-        assert "mcp__pydantic_tools__tavily_context" in mcp_tool_names
+        # ツール自体は set_agent_toolsets 経由で登録済み
+        toolsets = getattr(agent._model, "_agent_toolsets", None)
+        assert toolsets is not None
+        assert len(toolsets) == 3  # 3 Tavily tools
 
     def test_skips_registration_for_non_claudecode_model(
         self,
