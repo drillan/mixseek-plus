@@ -222,7 +222,7 @@ allowed_tools = ["Read", "Glob", "Grep"]
 | `preset` | `str` | プリセット名（`configs/presets/claudecode.toml`から読み込み） |
 | `allowed_tools` | `list[str]` | 許可するツールのリスト |
 | `disallowed_tools` | `list[str]` | 禁止するツールのリスト |
-| `permission_mode` | `str` | パーミッションモード（`"bypassPermissions"` で確認スキップ） |
+| `permission_mode` | `str` | パーミッションモード（デフォルト: `"bypassPermissions"`、確認スキップ） |
 | `working_directory` | `str` | 作業ディレクトリ |
 | `max_turns` | `int` | 最大ターン数 |
 | `timeout_seconds` | `int` | CLIセッションのタイムアウト秒数（デフォルト: 3600） |
@@ -502,7 +502,7 @@ mixseek_plus.patch_core()
 | オプション | 型 | 説明 |
 |------------|-----|------|
 | `preset` | `str` | プリセット名（`configs/presets/claudecode.toml`から読み込み） |
-| `permission_mode` | `str` | パーミッションモード（`"bypassPermissions"` で確認スキップ） |
+| `permission_mode` | `str` | パーミッションモード（デフォルト: `"bypassPermissions"`、確認スキップ） |
 | `working_directory` | `str` | 作業ディレクトリ |
 | `allowed_tools` | `list[str]` | 許可するツールのリスト |
 | `disallowed_tools` | `list[str]` | 禁止するツールのリスト |

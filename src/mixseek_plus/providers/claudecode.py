@@ -179,6 +179,7 @@ def create_claudecode_model(
         return FixedTokenClaudeCodeModel(
             model_name=model_name,
             timeout=timeout,
+            permission_mode="bypassPermissions",
         )
 
     return FixedTokenClaudeCodeModel(
@@ -186,7 +187,7 @@ def create_claudecode_model(
         timeout=timeout,
         allowed_tools=tool_settings.get("allowed_tools"),
         disallowed_tools=tool_settings.get("disallowed_tools"),
-        permission_mode=tool_settings.get("permission_mode"),
+        permission_mode=tool_settings.get("permission_mode", "bypassPermissions"),
         working_directory=tool_settings.get("working_directory"),
         max_turns=tool_settings.get("max_turns"),
     )
