@@ -77,7 +77,8 @@ class ClaudeCodeToolsetMixin:
         ClaudeCodeModelは、Agent作成後にset_agent_toolsets()を介して
         ツール関数を明示的に登録する必要があります。このメソッドは:
         - ツール関数をラップしてコンテキストを注入
-        - MCPツール名をallowed_toolsに追加してClaudeが呼び出せるようにする
+        - allowed_toolsがリスト（ホワイトリスト制限あり）の場合、MCPツール名を追加。
+          Noneの場合は全ツール利用可能のため変更しない
 
         MCPツールの命名規則: mcp__<server_name>__<tool_name>
         server_nameは`claudecode_model.mcp_integration.MCP_SERVER_NAME`から取得
@@ -159,10 +160,12 @@ class ClaudeCodeToolsetMixin:
         mcp_tool_names = [f"mcp__{MCP_SERVER_NAME}__{tool.name}" for tool in tools]
 
         # モデルのallowed_toolsを更新
-        if model._allowed_tools is None:
-            model._allowed_tools = mcp_tool_names
-        else:
-            # 既存のallowed_toolsを拡張
+        # allowed_tools=None は「全ツール利用可能（制限なし）」を意味する。
+        # MCP ツールは --mcp-config 経由で登録されるため、
+        # allowed_tools に明示追加しなくても利用可能。
+        # None を上書きすると Bash/Read 等の標準ツールがブロックされる (Issue #58)。
+        if model._allowed_tools is not None:
+            # 既存のホワイトリストを MCP ツール名で拡張
             model._allowed_tools = list(set(model._allowed_tools) | set(mcp_tool_names))
 
         logger.debug(

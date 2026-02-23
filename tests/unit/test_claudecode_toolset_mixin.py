@@ -197,15 +197,19 @@ class TestRegisterToolsetsIfClaudecode:
 
     @pytest.mark.asyncio
     async def test_registers_tools_with_claudecode_model(self) -> None:
-        """ClaudeCodeModel にツールが正しく登録されることを確認."""
+        """ClaudeCodeModel にツールが正しく登録されることを確認.
+
+        allowed_tools が既にリスト（ホワイトリスト制限あり）の場合、
+        MCP ツール名が追加される。
+        """
         from claudecode_model import ClaudeCodeModel
 
         ConcreteMixin = self._create_concrete_mixin()
         instance = ConcreteMixin()
 
-        # Create mock ClaudeCodeModel
+        # allowed_tools がリスト（ホワイトリスト制限あり）のモデルを作成
         mock_model = MagicMock(spec=ClaudeCodeModel)
-        mock_model._allowed_tools = None
+        mock_model._allowed_tools = ["Bash", "Read"]
         instance._model = mock_model
 
         # Create mock agent with tools
@@ -224,9 +228,11 @@ class TestRegisterToolsetsIfClaudecode:
         # Verify set_agent_toolsets was called
         mock_model.set_agent_toolsets.assert_called_once()
 
-        # Verify allowed_tools was updated
-        assert mock_model._allowed_tools is not None
+        # Verify allowed_tools was extended with MCP tool names
         assert "mcp__pydantic_tools__test_tool" in mock_model._allowed_tools
+        # Verify existing tools are preserved
+        assert "Bash" in mock_model._allowed_tools
+        assert "Read" in mock_model._allowed_tools
 
     @pytest.mark.asyncio
     async def test_extends_existing_allowed_tools(self) -> None:
@@ -255,6 +261,45 @@ class TestRegisterToolsetsIfClaudecode:
         # Verify allowed_tools includes both existing and new
         assert "existing_tool" in mock_model._allowed_tools
         assert "mcp__pydantic_tools__new_tool" in mock_model._allowed_tools
+
+    @pytest.mark.asyncio
+    async def test_preserves_allowed_tools_none(self) -> None:
+        """allowed_tools=None（無制限）が維持されることを確認.
+
+        allowed_tools=None は「全ツール利用可能」を意味する。
+        MCP ツール登録時にこの値を上書きすると、Bash/Read 等の
+        標準ツールがブロックされてしまう（Issue #58）。
+        MCP ツールは --mcp-config 経由で登録されるため、
+        allowed_tools に明示追加する必要はない。
+        """
+        from claudecode_model import ClaudeCodeModel
+
+        ConcreteMixin = self._create_concrete_mixin()
+        instance = ConcreteMixin()
+
+        # allowed_tools=None（無制限）のモデルを作成
+        mock_model = MagicMock(spec=ClaudeCodeModel)
+        mock_model._allowed_tools = None
+        instance._model = mock_model
+
+        # ツール付きエージェントを作成
+        mock_tool = MockTool(
+            name="test_tool", description="Test", function=lambda: None
+        )
+        mock_toolset = MagicMock()
+        mock_toolset.tools = {"test_tool": mock_tool}
+        mock_agent = MagicMock()
+        mock_agent._function_toolset = mock_toolset
+        instance._agent = mock_agent
+
+        # ツール登録を実行
+        instance._register_toolsets_if_claudecode()
+
+        # set_agent_toolsets は呼ばれるべき
+        mock_model.set_agent_toolsets.assert_called_once()
+
+        # allowed_tools は None のままであるべき（上書きされない）
+        assert mock_model._allowed_tools is None
 
     def test_propagates_wrap_tool_exception(self) -> None:
         """_wrap_tool_for_mcp_impl の例外が伝播することを確認."""
