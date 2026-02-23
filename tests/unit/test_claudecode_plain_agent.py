@@ -427,4 +427,5 @@ class TestCreateClaudeCodeModelWithToolSettings:
             mock_model.assert_called_once_with(
                 model_name="claude-sonnet-4-5",
                 timeout=CLAUDECODE_SESSION_TIMEOUT_SECONDS,
+                permission_mode="bypassPermissions",
             )

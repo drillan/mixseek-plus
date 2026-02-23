@@ -1523,7 +1523,12 @@ class TestToolSettingsIsolation:
         """ISS-056-001: auth.create_authenticated_model should NOT apply leader settings.
 
         When member agents (e.g., PlainMemberAgent) call create_authenticated_model
-        via the auth module, they should NOT receive Leader's tool_settings.
+        via the auth module, they should NOT receive Leader's tool_settings
+        (e.g., disallowed_tools from delegate_only preset).
+
+        Note: permission_mode="bypassPermissions" IS set as a default for all
+        SDK sessions (Issue #60), but leader-specific settings like
+        disallowed_tools should NOT leak to members.
         """
         from mixseek_plus import core_patch
         from mixseek_plus.core_patch import (
@@ -1558,11 +1563,12 @@ class TestToolSettingsIsolation:
             )
             create_authenticated_model("claudecode:claude-sonnet-4-5")
 
-            # Verify leader's tool_settings were NOT passed
+            # Verify leader's disallowed_tools were NOT passed
             mock_model.assert_called_once()
             call_kwargs = mock_model.call_args.kwargs
             assert call_kwargs.get("disallowed_tools") is None
-            assert call_kwargs.get("permission_mode") is None
+            # permission_mode IS set as default for all SDK sessions (Issue #60)
+            assert call_kwargs.get("permission_mode") == "bypassPermissions"
 
     def test_leader_module_applies_tool_settings(self) -> None:
         """ISS-056-002: Leader module's create_authenticated_model SHOULD apply settings.

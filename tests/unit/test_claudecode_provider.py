@@ -68,6 +68,7 @@ class TestCreateClaudeCodeModel:
             mock_model_class.assert_called_once_with(
                 model_name="claude-sonnet-4-5",
                 timeout=CLAUDECODE_SESSION_TIMEOUT_SECONDS,
+                permission_mode="bypassPermissions",
             )
 
     def test_create_claudecode_model_returns_fixed_token_model(self) -> None:
@@ -75,6 +76,76 @@ class TestCreateClaudeCodeModel:
         model = create_claudecode_model("claude-sonnet-4-5")
 
         assert isinstance(model, FixedTokenClaudeCodeModel)
+
+
+class TestPermissionModeDefault:
+    """permission_modeのデフォルト値テスト（Issue #60）.
+
+    SDKセッションは常に非インタラクティブであるため、
+    permission_mode="bypassPermissions"がデフォルトとなるべき。
+    """
+
+    def test_create_claudecode_model_without_tool_settings_has_bypass_permissions(
+        self,
+    ) -> None:
+        """ISS-060-001: tool_settings未指定時にpermission_mode='bypassPermissions'が設定される."""
+        with patch(
+            "mixseek_plus.providers.claudecode.FixedTokenClaudeCodeModel"
+        ) as mock_model_class:
+            create_claudecode_model("claude-sonnet-4-5")
+
+            mock_model_class.assert_called_once_with(
+                model_name="claude-sonnet-4-5",
+                timeout=CLAUDECODE_SESSION_TIMEOUT_SECONDS,
+                permission_mode="bypassPermissions",
+            )
+
+    def test_create_claudecode_model_with_tool_settings_missing_permission_mode(
+        self,
+    ) -> None:
+        """ISS-060-002: tool_settingsにpermission_mode未指定時もデフォルトが適用される."""
+        tool_settings: ClaudeCodeToolSettings = {
+            "allowed_tools": ["Read", "Write"],
+        }
+        with patch(
+            "mixseek_plus.providers.claudecode.FixedTokenClaudeCodeModel"
+        ) as mock_model_class:
+            create_claudecode_model("claude-sonnet-4-5", tool_settings=tool_settings)
+
+            call_kwargs = mock_model_class.call_args.kwargs
+            assert call_kwargs["permission_mode"] == "bypassPermissions"
+
+    def test_create_claudecode_model_with_explicit_permission_mode_is_preserved(
+        self,
+    ) -> None:
+        """ISS-060-003: 明示的にpermission_modeが指定された場合はその値が使用される."""
+        tool_settings: ClaudeCodeToolSettings = {
+            "permission_mode": "default",
+        }
+        with patch(
+            "mixseek_plus.providers.claudecode.FixedTokenClaudeCodeModel"
+        ) as mock_model_class:
+            create_claudecode_model("claude-sonnet-4-5", tool_settings=tool_settings)
+
+            call_kwargs = mock_model_class.call_args.kwargs
+            assert call_kwargs["permission_mode"] == "default"
+
+    def test_create_claudecode_model_with_bypass_permissions_explicit(
+        self,
+    ) -> None:
+        """ISS-060-004: 明示的にbypassPermissionsを指定した場合もそのまま使用される."""
+        tool_settings: ClaudeCodeToolSettings = {
+            "permission_mode": "bypassPermissions",
+            "allowed_tools": ["Read"],
+        }
+        with patch(
+            "mixseek_plus.providers.claudecode.FixedTokenClaudeCodeModel"
+        ) as mock_model_class:
+            create_claudecode_model("claude-sonnet-4-5", tool_settings=tool_settings)
+
+            call_kwargs = mock_model_class.call_args.kwargs
+            assert call_kwargs["permission_mode"] == "bypassPermissions"
+            assert call_kwargs["allowed_tools"] == ["Read"]
 
 
 class TestFixedTokenClaudeCodeModel:
