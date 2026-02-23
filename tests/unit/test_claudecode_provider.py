@@ -338,9 +338,9 @@ class TestClaudeCodeSessionTimeout:
     コンストラクタで設定したより長いタイムアウトを使用する。
     """
 
-    def test_default_session_timeout_is_3600(self) -> None:
-        """デフォルトのセッションタイムアウトが3600秒であることを確認."""
-        assert CLAUDECODE_SESSION_TIMEOUT_SECONDS == 3600
+    def test_default_session_timeout_is_7200(self) -> None:
+        """デフォルトのセッションタイムアウトが7200秒であることを確認."""
+        assert CLAUDECODE_SESSION_TIMEOUT_SECONDS == 7200
 
     def test_create_claudecode_model_uses_default_timeout(self) -> None:
         """create_claudecode_modelがデフォルトタイムアウトをコンストラクタに渡す."""

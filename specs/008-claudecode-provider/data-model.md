@@ -100,7 +100,7 @@ disallowed_tools = ["Write", "Edit"]
 permission_mode = "bypassPermissions"
 working_directory = "/tmp"
 max_turns = 5
-timeout_seconds = 3600
+timeout_seconds = 7200
 ```
 
 ### 5. ClaudeCodeNotPatchedError

@@ -14,7 +14,7 @@ from pydantic_ai.usage import RequestUsage
 # ツール呼び出しやメンバーエージェント実行を含む全体の時間が必要なため、
 # より長いタイムアウトを設定する。
 # オーケストレータのtimeout_per_team_secondsが上位のセーフティネットとして機能する。
-CLAUDECODE_SESSION_TIMEOUT_SECONDS = 3600
+CLAUDECODE_SESSION_TIMEOUT_SECONDS = 7200
 
 
 class FixedTokenClaudeCodeModel(ClaudeCodeModel):
