@@ -77,7 +77,8 @@ class ClaudeCodeToolsetMixin:
         ClaudeCodeModelは、Agent作成後にset_agent_toolsets()を介して
         ツール関数を明示的に登録する必要があります。このメソッドは:
         - ツール関数をラップしてコンテキストを注入
-        - MCPツール名をallowed_toolsに追加してClaudeが呼び出せるようにする
+        - allowed_toolsがリスト（ホワイトリスト制限あり）の場合、MCPツール名を追加。
+          Noneの場合は全ツール利用可能のため変更しない
 
         MCPツールの命名規則: mcp__<server_name>__<tool_name>
         server_nameは`claudecode_model.mcp_integration.MCP_SERVER_NAME`から取得

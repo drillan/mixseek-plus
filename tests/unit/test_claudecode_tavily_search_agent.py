@@ -8,7 +8,7 @@ Tests for T031-T034:
         Test agent registers 3 Tavily tools
 - T032: Test MCP tool naming convention (mcp__pydantic_tools__tavily_*)
 - T033: Test _wrap_tool_for_mcp() injects TavilySearchDeps correctly
-- T034: Test allowed_tools includes MCP tool names
+- T034: Test allowed_tools=None is preserved after MCP tool registration (Issue #58)
 
 NOTE: Tests use type="custom" to bypass MemberAgentConfig's model prefix validation.
 This is needed because Pydantic v2 compiles validators at class definition time,
