@@ -350,12 +350,13 @@ class TestClaudeCodeSessionTimeout:
 
     def test_create_claudecode_model_with_custom_timeout(self) -> None:
         """tool_settings.timeout_secondsでカスタムタイムアウトを設定できる."""
-        tool_settings: ClaudeCodeToolSettings = {"timeout_seconds": 7200}
+        custom_timeout = 9999
+        tool_settings: ClaudeCodeToolSettings = {"timeout_seconds": custom_timeout}
         model = create_claudecode_model(
             "claude-sonnet-4-5", tool_settings=tool_settings
         )
         assert isinstance(model, FixedTokenClaudeCodeModel)
-        assert model._timeout == 7200
+        assert model._timeout == custom_timeout
 
     def test_create_claudecode_model_with_tool_settings_no_timeout(self) -> None:
         """tool_settingsにtimeout_secondsがない場合はデフォルトを使用."""
@@ -374,7 +375,8 @@ class TestClaudeCodeSessionTimeout:
         ClaudeCode CLIセッションではコンストラクタのタイムアウトを使用すべき。
         """
         model = FixedTokenClaudeCodeModel(
-            model_name="claude-sonnet-4-5", timeout=3600.0
+            model_name="claude-sonnet-4-5",
+            timeout=float(CLAUDECODE_SESSION_TIMEOUT_SECONDS),
         )
 
         model_settings: ModelSettings = {"timeout": 300}
@@ -399,7 +401,8 @@ class TestClaudeCodeSessionTimeout:
     async def test_request_preserves_other_model_settings(self) -> None:
         """request()がtimeout以外のmodel_settingsを保持することを確認."""
         model = FixedTokenClaudeCodeModel(
-            model_name="claude-sonnet-4-5", timeout=3600.0
+            model_name="claude-sonnet-4-5",
+            timeout=float(CLAUDECODE_SESSION_TIMEOUT_SECONDS),
         )
 
         model_settings: ModelSettings = {"timeout": 300, "temperature": 0.5}
@@ -425,7 +428,8 @@ class TestClaudeCodeSessionTimeout:
     async def test_request_handles_none_model_settings(self) -> None:
         """model_settingsがNoneの場合も正常に動作することを確認."""
         model = FixedTokenClaudeCodeModel(
-            model_name="claude-sonnet-4-5", timeout=3600.0
+            model_name="claude-sonnet-4-5",
+            timeout=float(CLAUDECODE_SESSION_TIMEOUT_SECONDS),
         )
 
         original_response = ModelResponse(
@@ -448,7 +452,8 @@ class TestClaudeCodeSessionTimeout:
     async def test_request_handles_settings_without_timeout(self) -> None:
         """model_settingsにtimeoutがない場合はそのまま渡すことを確認."""
         model = FixedTokenClaudeCodeModel(
-            model_name="claude-sonnet-4-5", timeout=3600.0
+            model_name="claude-sonnet-4-5",
+            timeout=float(CLAUDECODE_SESSION_TIMEOUT_SECONDS),
         )
 
         model_settings: ModelSettings = {"temperature": 0.0}

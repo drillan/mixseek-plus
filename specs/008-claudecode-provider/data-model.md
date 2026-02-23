@@ -202,7 +202,7 @@ stateDiagram-v2
 | `permission_mode` | 文字列、特定値は検証しない |
 | `working_directory` | 文字列、パス存在チェックなし |
 | `max_turns` | 正整数 |
-| `timeout_seconds` | 正整数、CLIセッションタイムアウト（デフォルト: 3600） |
+| `timeout_seconds` | 正整数、CLIセッションタイムアウト（デフォルト: 7200） |
 
 ## Error Types
 
